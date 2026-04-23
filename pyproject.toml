@@ -3,16 +3,16 @@ requires = ["setuptools>=65.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "package-name"  # Change this to your package name
+name = "neutron-skills"
 version = "0.1.0"
-description = "A scientific data processing package"
+description = "A curated registry of Agent Skills for neutron scattering."
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "BSD-3-Clause"}
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]
-keywords = ["science", "data", "processing"]
+keywords = ["neutron", "scattering", "agent-skills", "llm", "agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -27,8 +27,8 @@ classifiers = [
 
 # Core dependencies
 dependencies = [
-    "numpy>=1.24.0",
-    "pandas>=2.0.0",
+    "click>=8.1.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -56,9 +56,8 @@ api = [
     "pydantic>=2.4.0",
 ]
 
-# CLI dependencies
+# CLI extras (click is already a core dep; this extra adds progress bars & env loading)
 cli = [
-    "click>=8.1.0",
     "tqdm>=4.66.0",
     "python-dotenv>=1.0.0",
 ]
@@ -80,7 +79,7 @@ docs = [
 
 # All optional dependencies
 all = [
-    "package-name[dev,web,api,cli,science,docs]",
+    "neutron-skills[dev,web,api,cli,science,docs]",
 ]
 
 [project.urls]
@@ -90,14 +89,13 @@ Repository = "https://github.com/yourusername/your-repo"
 Issues = "https://github.com/yourusername/your-repo/issues"
 
 [project.scripts]
-# Command-line interface (uncomment and customize after implementing CLI)
-# your-package = "package_name.cli:main"
+neutron-skills = "neutron_skills.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-package_name = ["py.typed"]
+neutron_skills = ["py.typed", "skills/**/*"]
 
 # Pytest configuration
 [tool.pytest.ini_options]
@@ -111,7 +109,7 @@ addopts = [
     "-ra",                      # Show summary of all test outcomes
     "--strict-markers",         # Error on unknown markers
     "--strict-config",          # Error on unknown config options
-    "--cov=src/package_name",   # Coverage for your package
+    "--cov=src/neutron_skills", # Coverage for your package
     "--cov-report=term-missing", # Show missing lines in coverage
     "--cov-report=html",        # Generate HTML coverage report
 ]
@@ -173,7 +171,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["package_name"]
+known-first-party = ["neutron_skills"]
 
 # Black configuration (code formatting)
 [tool.black]

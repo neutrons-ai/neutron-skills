@@ -1,33 +1,21 @@
 # Project Overview
 
-*Fill out this template to help AI understand your project and create an implementation plan.*
+We are building a repository of curated agent skills for neutron scattering.
 
 ## Project Name
-<!-- What's your package called? -->
+neutron-skills
 
 
-## Purpose
-<!-- In 2-3 sentences, what problem does your package solve? -->
+## Description
+The purpose of this project is to develop a python package that provides agent skills following the standard specifications.
+That package can then be imported and used by other agents. It needs to includes a registry/lookup for the agents to use.
+The neutron skills will be organized for curation, in a directory structure. For instance, there will be a general scattering folder, a diffraction folder, etc...
 
+Fro reference, follow the skills specifications:
+https://agentskills.io/specification
 
-## Target Users
-<!-- Who will use this? (e.g., biologists, data scientists, yourself) -->
-
-
-## Core Functionality
-<!-- What are the 3-5 main things your package should do? -->
-
-1. 
-2. 
-3. 
-
-
-## Input/Output
-<!-- What kind of data/files does it work with? What does it produce? -->
-
-**Input:** 
-
-**Output:** 
+And how they should be used:
+https://agentskills.io/client-implementation/adding-skills-support
 
 
 ## Example Usage
@@ -35,34 +23,16 @@
 
 ```python
 # Example:
-from my_package import process
+from neutron-skills import retrieve
 
-result = process("data.csv")
-print(result)
+skills, tools = retrieve("We are writing a scan script to acquire data on the EQSANS instrument at SNS.")
+
+# Insert skills in prompt
+# Pass tools to LLM call
+
 ```
 
 
 ## Dependencies
-<!-- Any specific libraries you know you'll need? (e.g., pandas, numpy, matplotlib) -->
-- If you are building a web application, use flask and bootstrap.
-- If you are building an API, use FastAPI.
-- If you are building an MCP server, use FastMCP.
 - For CLI, use click.
 
-
-## Technical Notes
-<!-- Any other requirements or constraints? -->
-
-
----
-
-## Next Steps
-
-Once you've filled this out, ask Copilot:
-
-```
-"I've described my project in docs/project.md. 
-Please assess the current template and create an itemized plan to implement this project."
-```
-
-Copilot will read your project description and create a step-by-step plan!
