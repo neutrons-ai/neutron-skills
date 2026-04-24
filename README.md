@@ -4,8 +4,8 @@ A curated registry of **Agent Skills** for neutron scattering, consumable by
 other AI agents through a small Python API and a Click-based CLI.
 
 Skills follow the [Agent Skills specification](https://agentskills.io/specification):
-each skill is a directory containing a `SKILL.md` file with YAML frontmatter
-(`name`, `description`, optional `allowed-tools`, `metadata`, ...) and a
+each skill is a directory containing a `SKILL.md` file with YAML
+frontmatter (`name`, `description`, optional `metadata`, ...) and a
 Markdown body of instructions.
 
 ## Install
@@ -27,13 +27,11 @@ skills = retrieve(
 for s in skills:
     print(s.name, s.description)
     prompt += s.body
-
-# Each Skill exposes its frontmatter, including `allowed_tools` —
-# the spec's permission tokens (e.g. "Read", "Bash(python:*)") for
-# runtimes that enforce a tool whitelist. To discover *executable*
-# Python helpers a skill ships under `<skill>/scripts/`, see the
-# "Tool calling" section below.
 ```
+
+To discover the executable Python helpers a skill ships under
+`<skill>/scripts/`, see the ["Tool calling"](#tool-calling-shipping-executable-helpers-with-a-skill)
+section below.
 
 ### Retrieval backends
 
