@@ -100,38 +100,81 @@ def test_top_k_limits_results(seeded_registry: SkillRegistry):
     assert len(skills) == 1
 
 
-# --- LLM path ---
+# --- LLM path (progressive / two-stage) ---
 
 
 class _StubSelector:
-    def __init__(self, names: list[str], *, raise_exc: Exception | None = None) -> None:
-        self.names = names
-        self.raise_exc = raise_exc
-        self.last_catalog: list[dict[str, str]] | None = None
+    """
+    Two-stage stub: returns ``domain_picks`` on its first call and
+    ``skill_picks`` on subsequent calls. Optionally raises on a chosen
+    stage to exercise fallback paths.
+    """
 
-    def select(self, query: str, catalog: list[dict[str, str]], top_k: int) -> list[str]:
-        self.last_catalog = catalog
-        if self.raise_exc is not None:
-            raise self.raise_exc
-        return self.names[:top_k]
+    def __init__(
+        self,
+        *,
+        domain_picks: list[str] | None = None,
+        skill_picks: list[str] | None = None,
+        raise_on: str | None = None,
+    ) -> None:
+        self.domain_picks = domain_picks or []
+        self.skill_picks = skill_picks or []
+        self.raise_on = raise_on  # None | "domain" | "skill"
+        self.calls: list[tuple[str, list[dict[str, str]]]] = []
+
+    def select(
+        self, query: str, catalog: list[dict[str, str]], top_k: int
+    ) -> list[str]:
+        stage = "domain" if not self.calls else "skill"
+        self.calls.append((stage, catalog))
+        if self.raise_on == stage:
+            raise RuntimeError(f"boom in {stage}")
+        picks = self.domain_picks if stage == "domain" else self.skill_picks
+        return picks[:top_k]
 
 
-def test_llm_selector_chooses_skills(seeded_registry: SkillRegistry):
-    selector = _StubSelector(["rietveld-checklist"])
+def test_llm_selector_progressive_happy_path(seeded_registry: SkillRegistry):
+    selector = _StubSelector(
+        domain_picks=["diffraction"], skill_picks=["rietveld-checklist"]
+    )
     skills = retrieve(
-        "anything",
+        "Rietveld refinement on powder diffraction",
         registry=seeded_registry,
         method="llm",
         selector=selector,
     )
     assert [s.name for s in skills] == ["rietveld-checklist"]
-    # Catalog passed to selector is tier-1 only.
-    assert selector.last_catalog is not None
-    assert set(selector.last_catalog[0].keys()) == {"name", "description"}
+    # Stage 1 received the tier-0 catalog (domains only).
+    assert selector.calls[0][0] == "domain"
+    stage1_names = {row["name"] for row in selector.calls[0][1]}
+    assert {"diffraction", "sans", "general-scattering"} <= stage1_names
+    # Stage 2 received only skills in the selected domain.
+    assert selector.calls[1][0] == "skill"
+    stage2_names = {row["name"] for row in selector.calls[1][1]}
+    assert stage2_names == {"rietveld-checklist"}
+
+
+def test_progressive_filters_out_other_domains(seeded_registry: SkillRegistry):
+    """Stage 2 must never see skills outside the selected domains."""
+    selector = _StubSelector(
+        domain_picks=["diffraction"], skill_picks=["rietveld-checklist"]
+    )
+    retrieve(
+        "diffraction question",
+        registry=seeded_registry,
+        method="llm",
+        selector=selector,
+    )
+    stage2_names = {row["name"] for row in selector.calls[1][1]}
+    # SANS and general-scattering skills must not appear in stage-2 catalog.
+    assert "eqsans-scan-scripting" not in stage2_names
+    assert "q-range-basics" not in stage2_names
 
 
 def test_auto_uses_llm_when_selector_provided(seeded_registry: SkillRegistry):
-    selector = _StubSelector(["q-range-basics"])
+    selector = _StubSelector(
+        domain_picks=["general-scattering"], skill_picks=["q-range-basics"]
+    )
     skills = retrieve(
         "EQSANS scan",  # deterministic would pick eqsans first
         registry=seeded_registry,
@@ -146,8 +189,10 @@ def test_auto_uses_deterministic_when_no_selector(seeded_registry: SkillRegistry
     assert skills[0].name == "eqsans-scan-scripting"
 
 
-def test_llm_failure_falls_back_to_deterministic(seeded_registry: SkillRegistry):
-    selector = _StubSelector([], raise_exc=RuntimeError("boom"))
+def test_llm_stage1_failure_falls_back_to_deterministic(
+    seeded_registry: SkillRegistry,
+):
+    selector = _StubSelector(raise_on="domain")
     skills = retrieve(
         "EQSANS scan script",
         registry=seeded_registry,
@@ -157,15 +202,47 @@ def test_llm_failure_falls_back_to_deterministic(seeded_registry: SkillRegistry)
     assert skills and skills[0].name == "eqsans-scan-scripting"
 
 
-def test_llm_unknown_name_is_skipped_and_falls_back(seeded_registry: SkillRegistry):
-    selector = _StubSelector(["does-not-exist"])
+def test_llm_stage2_failure_falls_back_within_selected_domains(
+    seeded_registry: SkillRegistry,
+):
+    selector = _StubSelector(domain_picks=["sans"], raise_on="skill")
+    skills = retrieve(
+        "EQSANS scan script",
+        registry=seeded_registry,
+        method="llm",
+        selector=selector,
+    )
+    # Fallback scores only skills inside the selected domain.
+    assert [s.name for s in skills] == ["eqsans-scan-scripting"]
+
+
+def test_llm_unknown_domain_falls_back_to_deterministic(
+    seeded_registry: SkillRegistry,
+):
+    selector = _StubSelector(domain_picks=["does-not-exist"])
     skills = retrieve(
         "EQSANS scan",
         registry=seeded_registry,
         method="llm",
         selector=selector,
     )
-    # All names unknown -> fallback to deterministic.
+    # Stage 1 returned no recognized domain -> broad fallback.
+    assert skills and skills[0].name == "eqsans-scan-scripting"
+
+
+def test_llm_unknown_skill_name_falls_back_within_domain(
+    seeded_registry: SkillRegistry,
+):
+    selector = _StubSelector(
+        domain_picks=["sans"], skill_picks=["does-not-exist"]
+    )
+    skills = retrieve(
+        "EQSANS scan",
+        registry=seeded_registry,
+        method="llm",
+        selector=selector,
+    )
+    # Stage 2 returned nothing usable -> deterministic within 'sans'.
     assert skills and skills[0].name == "eqsans-scan-scripting"
 
 
@@ -187,3 +264,26 @@ def test_build_catalog_shape(seeded_registry: SkillRegistry):
         "rietveld-checklist",
         "q-range-basics",
     }
+
+
+def test_build_domain_catalog_uses_builtin_descriptions(
+    seeded_registry: SkillRegistry,
+):
+    from neutron_skills.retrieve import build_domain_catalog
+
+    catalog = build_domain_catalog(seeded_registry)
+    names = {row["name"] for row in catalog}
+    assert names == {"sans", "diffraction", "general-scattering"}
+    # Built-in descriptions are non-trivial (not just echoing the name).
+    for row in catalog:
+        assert len(row["description"]) > len(row["name"])
+
+
+def test_build_domain_catalog_user_override(seeded_registry: SkillRegistry):
+    from neutron_skills.retrieve import build_domain_catalog
+
+    catalog = build_domain_catalog(
+        seeded_registry, descriptions={"sans": "custom sans desc"}
+    )
+    by_name = {row["name"]: row["description"] for row in catalog}
+    assert by_name["sans"] == "custom sans desc"

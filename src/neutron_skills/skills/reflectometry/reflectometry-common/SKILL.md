@@ -1,5 +1,5 @@
 ---
-name: reflectometry
+name: reflectometry-common
 description: >
   Baseline domain knowledge for neutron reflectometry modeling and fitting with refl1d.
   Provides common material SLD values, chi-squared interpretation guidelines, model

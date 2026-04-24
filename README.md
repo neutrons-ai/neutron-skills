@@ -41,9 +41,16 @@ Two backends are supported; both are selected via the `method=` argument:
 
 | method | behavior |
 |---|---|
-| `"deterministic"` | Keyword/tag scoring over name, description, and `metadata.{tags,instruments,techniques}`. Offline, zero extra deps. |
-| `"llm"` | Sends the tier-1 catalog (name + description only) to an LLM and uses its picks. Requires a user-supplied `LLMSelector`. |
+| `"deterministic"` | Keyword/tag scoring over name, description, and `metadata.{tags,instruments,techniques}`. Offline, zero extra deps. Considers all skills globally. |
+| `"llm"` | **Progressive two-stage selection.** Stage 1: the selector picks the most relevant *domains* (e.g. `diffraction`, `sans`) from a tier-0 catalog. Stage 2: the selector picks skills *only from those domains* using a filtered tier-1 catalog. This prevents cross-domain leakage — a reflectometry skill can never surface on a pure diffraction query. Requires a user-supplied `LLMSelector`. Any stage failure falls back to deterministic. |
 | `"auto"` (default) | Use the LLM selector if provided, else fall back to deterministic. |
+
+Domains are inferred from the folder layout
+`<skills_root>/<domain>/<skill-name>/SKILL.md`. Domain descriptions for
+stage 1 come from a built-in map for the usual neutron scattering
+domains (`sans`, `diffraction`, `reflectometry`, `spectroscopy`,
+`inelastic`, `general-scattering`); override or extend via the
+`domain_descriptions=` argument to `retrieve()`.
 
 Example LLM selector:
 
@@ -52,11 +59,18 @@ from neutron_skills import retrieve
 
 class MySelector:
     def select(self, query, catalog, top_k):
-        # call your LLM with the (name, description) catalog
-        # and return a list of selected skill names
+        # Called once with the domain catalog, then once with the
+        # filtered skill catalog. Both are lists of {name, description}.
+        # Return a list of names picked from `catalog`.
         ...
 
-skills = retrieve("...", method="auto", selector=MySelector(), top_k=3)
+skills = retrieve(
+    "...",
+    method="auto",
+    selector=MySelector(),
+    top_k=3,            # skills returned (stage 2)
+    top_k_domains=2,    # domains kept after stage 1
+)
 ```
 
 ### External skills

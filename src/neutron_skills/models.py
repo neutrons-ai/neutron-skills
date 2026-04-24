@@ -41,6 +41,23 @@ class Skill:
         """The skill's base directory (parent of ``SKILL.md``)."""
         return self.path.parent
 
+    @property
+    def domain(self) -> str:
+        """
+        The skill's domain (e.g. ``"sans"``, ``"diffraction"``).
+
+        Derived from the folder layout
+        ``<skills_root>/<domain>/<skill-name>/SKILL.md``: the domain is the
+        name of the grandparent directory. Returns the empty string when
+        the skill lives outside a two-level layout.
+        """
+        parts = self.path.parts
+        # .../skills_root/<domain>/<skill-name>/SKILL.md
+        # parts[-1] = SKILL.md, parts[-2] = skill-name, parts[-3] = domain
+        if len(parts) < 3:
+            return ""
+        return parts[-3]
+
 
 def parse_allowed_tools(value: Any) -> list[str]:
     """
