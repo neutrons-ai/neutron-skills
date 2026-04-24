@@ -56,20 +56,19 @@ def seeded_registry(tmp_path: Path) -> SkillRegistry:
 
 
 def test_deterministic_ranks_eqsans_first(seeded_registry: SkillRegistry):
-    skills, tools = retrieve(
+    skills = retrieve(
         "We are writing a scan script on the EQSANS instrument at SNS.",
         registry=seeded_registry,
         method="deterministic",
     )
     assert skills, "expected at least one match"
     assert skills[0].name == "eqsans-scan-scripting"
-    # Union of allowed-tools from matched skills, de-duplicated.
-    for tool in ["Read", "Write", "Bash(python:*)"]:
-        assert tool in tools
+    # The matched skill's allowed-tools are still available per-skill.
+    assert set(skills[0].allowed_tools) == {"Read", "Write", "Bash(python:*)"}
 
 
 def test_deterministic_ranks_rietveld_for_diffraction_query(seeded_registry: SkillRegistry):
-    skills, _ = retrieve(
+    skills = retrieve(
         "How do I run a Rietveld refinement on powder diffraction?",
         registry=seeded_registry,
         method="deterministic",
@@ -78,45 +77,27 @@ def test_deterministic_ranks_rietveld_for_diffraction_query(seeded_registry: Ski
 
 
 def test_empty_query_returns_empty(seeded_registry: SkillRegistry):
-    skills, tools = retrieve("", registry=seeded_registry, method="deterministic")
+    skills = retrieve("", registry=seeded_registry, method="deterministic")
     assert skills == []
-    assert tools == []
 
 
 def test_no_matches_returns_empty(seeded_registry: SkillRegistry):
-    skills, tools = retrieve(
+    skills = retrieve(
         "Totally unrelated query about cooking pasta.",
         registry=seeded_registry,
         method="deterministic",
     )
     assert skills == []
-    assert tools == []
 
 
 def test_top_k_limits_results(seeded_registry: SkillRegistry):
-    skills, _ = retrieve(
+    skills = retrieve(
         "scan script Q Rietveld diffraction",
         registry=seeded_registry,
         method="deterministic",
         top_k=1,
     )
     assert len(skills) == 1
-
-
-def test_tools_are_deduplicated(tmp_path: Path):
-    _write(
-        tmp_path / "a" / "skill-a" / "SKILL.md",
-        "---\nname: skill-a\ndescription: alpha tool test\nallowed-tools: Read Write\n---\nb\n",
-    )
-    _write(
-        tmp_path / "b" / "skill-b" / "SKILL.md",
-        "---\nname: skill-b\ndescription: beta tool test\nallowed-tools: Read Bash\n---\nb\n",
-    )
-    reg = SkillRegistry.discover(bundled=False, extra_paths=[tmp_path])
-    _, tools = retrieve("tool test", registry=reg, method="deterministic")
-    # Order preserved first-seen; no duplicates.
-    assert tools.count("Read") == 1
-    assert set(tools) == {"Read", "Write", "Bash"}
 
 
 # --- LLM path ---
@@ -137,7 +118,7 @@ class _StubSelector:
 
 def test_llm_selector_chooses_skills(seeded_registry: SkillRegistry):
     selector = _StubSelector(["rietveld-checklist"])
-    skills, _ = retrieve(
+    skills = retrieve(
         "anything",
         registry=seeded_registry,
         method="llm",
@@ -151,7 +132,7 @@ def test_llm_selector_chooses_skills(seeded_registry: SkillRegistry):
 
 def test_auto_uses_llm_when_selector_provided(seeded_registry: SkillRegistry):
     selector = _StubSelector(["q-range-basics"])
-    skills, _ = retrieve(
+    skills = retrieve(
         "EQSANS scan",  # deterministic would pick eqsans first
         registry=seeded_registry,
         method="auto",
@@ -161,13 +142,13 @@ def test_auto_uses_llm_when_selector_provided(seeded_registry: SkillRegistry):
 
 
 def test_auto_uses_deterministic_when_no_selector(seeded_registry: SkillRegistry):
-    skills, _ = retrieve("EQSANS", registry=seeded_registry, method="auto")
+    skills = retrieve("EQSANS", registry=seeded_registry, method="auto")
     assert skills[0].name == "eqsans-scan-scripting"
 
 
 def test_llm_failure_falls_back_to_deterministic(seeded_registry: SkillRegistry):
     selector = _StubSelector([], raise_exc=RuntimeError("boom"))
-    skills, _ = retrieve(
+    skills = retrieve(
         "EQSANS scan script",
         registry=seeded_registry,
         method="llm",
@@ -178,7 +159,7 @@ def test_llm_failure_falls_back_to_deterministic(seeded_registry: SkillRegistry)
 
 def test_llm_unknown_name_is_skipped_and_falls_back(seeded_registry: SkillRegistry):
     selector = _StubSelector(["does-not-exist"])
-    skills, _ = retrieve(
+    skills = retrieve(
         "EQSANS scan",
         registry=seeded_registry,
         method="llm",

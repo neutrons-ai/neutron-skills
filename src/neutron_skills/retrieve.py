@@ -135,17 +135,6 @@ def deterministic_select(
 # ---------------------------------------------------------------------------
 
 
-def _union_tools(skills: Iterable[Skill]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for skill in skills:
-        for tool in skill.allowed_tools:
-            if tool not in seen:
-                seen.add(tool)
-                result.append(tool)
-    return result
-
-
 def retrieve(
     query: str,
     *,
@@ -154,7 +143,7 @@ def retrieve(
     extra_paths: Iterable[str] | None = None,
     registry: SkillRegistry | None = None,
     top_k: int = 5,
-) -> tuple[list[Skill], list[str]]:
+) -> list[Skill]:
     """
     Retrieve relevant skills for a natural-language task description.
 
@@ -171,9 +160,11 @@ def retrieve(
         top_k: Maximum number of skills to return.
 
     Returns:
-        ``(skills, tools)`` where ``skills`` is the ranked list of matches
-        and ``tools`` is the deduped union of ``allowed-tools`` tokens from
-        those skills' frontmatter.
+        The ranked list of matching :class:`Skill` objects. Each skill's
+        ``allowed_tools`` attribute exposes its ``allowed-tools``
+        frontmatter (permission tokens per the Agent Skills spec) if you
+        need it. To discover Python helpers shipped under
+        ``<skill>/scripts/``, use :func:`neutron_skills.load_skill_tools`.
 
     Raises:
         ValueError: If ``method="llm"`` without a ``selector``, or if
@@ -214,5 +205,4 @@ def retrieve(
     else:
         selected = deterministic_select(query, registry, top_k)
 
-    tools = _union_tools(selected)
-    return selected, tools
+    return selected

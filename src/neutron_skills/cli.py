@@ -128,17 +128,21 @@ def retrieve_cmd(
         sys.exit(2)
 
     registry = _build_registry(extra_paths)
-    skills, tools = retrieve_fn(query, registry=registry, method=method, top_k=top_k)
+    skills = retrieve_fn(query, registry=registry, method=method, top_k=top_k)
 
     if as_json:
         click.echo(
             _json.dumps(
                 {
                     "skills": [
-                        {"name": s.name, "description": s.description, "path": str(s.path)}
+                        {
+                            "name": s.name,
+                            "description": s.description,
+                            "path": str(s.path),
+                            "allowed_tools": s.allowed_tools,
+                        }
                         for s in skills
                     ],
-                    "tools": tools,
                 },
                 indent=2,
             )
@@ -151,10 +155,6 @@ def retrieve_cmd(
 
     for s in skills:
         click.echo(f"- {s.name}: {s.description}")
-    if tools:
-        click.echo("\nallowed-tools:")
-        for t in tools:
-            click.echo(f"  {t}")
 
 
 # ---------------------------------------------------------------------------

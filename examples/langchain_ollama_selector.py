@@ -174,13 +174,11 @@ def answer_with_skills(
     """Retrieve skills for ``query`` and answer using the same local model."""
     selector = LangChainOllamaSelector(model=model, base_url=base_url)
 
-    skills, tools = retrieve(query, method="auto", selector=selector, top_k=top_k)
+    skills = retrieve(query, method="auto", selector=selector, top_k=top_k)
 
     print(f"\nMatched {len(skills)} skill(s):")
     for s in skills:
         print(f"  - {s.name}: {s.description}")
-    if tools:
-        print(f"Union of allowed-tools: {tools}")
 
     if not skills:
         print("\nNo relevant skills found; answering without extra context.\n")

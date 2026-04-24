@@ -19,7 +19,7 @@ pip install -e ".[dev]"
 ```python
 from neutron_skills import retrieve
 
-skills, tools = retrieve(
+skills = retrieve(
     "We are writing a scan script to acquire data on the EQSANS instrument at SNS."
 )
 
@@ -28,7 +28,11 @@ for s in skills:
     print(s.name, s.description)
     prompt += s.body
 
-# `tools` is the deduped union of `allowed-tools` from matched skills.
+# Each Skill exposes its frontmatter, including `allowed_tools` —
+# the spec's permission tokens (e.g. "Read", "Bash(python:*)") for
+# runtimes that enforce a tool whitelist. To discover *executable*
+# Python helpers a skill ships under `<skill>/scripts/`, see the
+# "Tool calling" section below.
 ```
 
 ### Retrieval backends
@@ -52,7 +56,7 @@ class MySelector:
         # and return a list of selected skill names
         ...
 
-skills, tools = retrieve("...", method="auto", selector=MySelector(), top_k=3)
+skills = retrieve("...", method="auto", selector=MySelector(), top_k=3)
 ```
 
 ### External skills
@@ -61,7 +65,7 @@ Add extra skill directories at runtime - they override bundled skills on
 name collision:
 
 ```python
-skills, _ = retrieve("...", extra_paths=["/path/to/my/skills"])
+skills = retrieve("...", extra_paths=["/path/to/my/skills"])
 ```
 
 ## CLI
@@ -86,6 +90,85 @@ ollama pull llama3.2:3b
 python examples/langchain_ollama_selector.py \
     "scan script on EQSANS"
 ```
+
+## Tool calling: shipping executable helpers with a skill
+
+A skill can ship **plain Python callables** alongside its instructions so
+an agent can perform concrete work (compute, validate, transform, …)
+through tool calls instead of free-form text.
+
+### Convention
+
+Drop a Python module under `<skill>/scripts/` that exposes a
+module-level `TOOLS` list of plain callables:
+
+```python
+# src/neutron_skills/skills/<domain>/<skill>/scripts/tools.py
+import math
+
+def compute_q(theta_deg: float, wavelength_aa: float) -> dict[str, float]:
+    """
+    Compute the momentum transfer Q for elastic scattering.
+
+    Args:
+        theta_deg: HALF the scattering angle, in degrees.
+        wavelength_aa: Neutron wavelength in angstroms.
+
+    Returns:
+        Dict with key ``Q`` in 1/Å.
+    """
+    q = 4 * math.pi / wavelength_aa * math.sin(math.radians(theta_deg))
+    return {"Q": q}
+
+TOOLS = [compute_q]
+```
+
+Rules:
+
+- Use **type hints** on every parameter — they become the JSON schema.
+- Write a clear **docstring** — it becomes the tool description.
+- Keep imports to the **standard library** (or what the skill genuinely
+  needs). The module must NOT depend on a specific agent framework, so
+  any runtime can wrap it.
+- Tool names must be unique across all bundled skills (prefix with the
+  skill name if you risk a collision).
+- Files starting with `_` are ignored.
+- List the tool names in the `SKILL.md` body so the LLM knows what's
+  available when the skill is in context.
+
+The retrieved `Skill.directory` and `Skill.resources` fields point at
+these files — runtimes are responsible for discovering and wrapping them.
+
+### Discovering tools at runtime
+
+Use :func:`neutron_skills.load_skill_tools` to import every matched
+skill's ``scripts/*.py`` modules and collect their ``TOOLS`` lists as
+plain Python callables:
+
+```python
+from neutron_skills import retrieve, load_skill_tools
+
+skills = retrieve("scattering angle 0.5 deg, wavelength 6 A")
+callables, sources = load_skill_tools(skills)
+# callables: list[Callable]   — plain Python functions
+# sources:   list[str]        — "<skill>:<file>:<callable>" for logging
+```
+
+This is **opt-in and side-effecting** — it imports skill modules,
+executing their top-level code. The plain :func:`retrieve` call never
+imports skill scripts.
+
+Then wrap each callable in your runtime's tool format:
+
+| Runtime | Wrap with |
+|---|---|
+| LangChain | `langchain_core.tools.StructuredTool.from_function(fn)` |
+| OpenAI | `openai.pydantic_function_tool(fn)` (or build a JSON schema from `inspect.signature` + docstring) |
+| Anthropic | Build the `input_schema` dict from `inspect.signature` |
+| MCP | Register with `mcp.server.Server.list_tools` / `call_tool` |
+
+A complete LangChain + Ollama agent loop using this pattern is in
+[examples/langchain_ollama_toolcalling.py](examples/langchain_ollama_toolcalling.py).
 
 ## Adding a skill
 

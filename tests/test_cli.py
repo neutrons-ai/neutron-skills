@@ -93,7 +93,6 @@ def test_retrieve_deterministic(tmp_path: Path):
     )
     assert result.exit_code == 0
     assert "eqsans-scan-scripting" in result.output
-    assert "allowed-tools" in result.output
 
 
 def test_retrieve_json(tmp_path: Path):
@@ -106,7 +105,7 @@ def test_retrieve_json(tmp_path: Path):
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert data["skills"][0]["name"] == "eqsans-scan-scripting"
-    assert "Read" in data["tools"]
+    assert "Read" in data["skills"][0]["allowed_tools"]
 
 
 def test_retrieve_llm_from_cli_is_rejected(tmp_path: Path):

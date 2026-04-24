@@ -35,3 +35,12 @@ where $2\theta$ is the scattering angle and $\lambda$ is the neutron wavelength.
 
 - Forgetting that $Q_{min}$ is set by the beamstop, not just $\lambda$.
 - Using too-long wavelengths when shorter $d$ also matter — you lose $Q_{max}$.
+
+## Available tools (when bound)
+
+If the agent has tools bound from this skill's `scripts/tools.py`, use them
+for any concrete numeric work instead of doing arithmetic in your head:
+
+- `compute_q(theta_deg, wavelength_aa)` — Q from θ and λ.
+- `compute_d_spacing(q_inv_aa)` — real-space length scale d ≈ 2π/Q.
+- `half_angle(two_theta_deg)` — convert 2θ → θ before calling `compute_q`.
