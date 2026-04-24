@@ -75,6 +75,18 @@ neutron-skills validate src/neutron_skills/skills      # lint the skill tree
 neutron-skills paths                                   # show scan locations
 ```
 
+## Examples
+
+See [examples/](examples/) for runnable integrations, including a
+LangChain + Ollama implementation of the `LLMSelector` protocol:
+
+```bash
+pip install -e ".[examples]"
+ollama pull llama3.2:3b
+python examples/langchain_ollama_selector.py \
+    "scan script on EQSANS"
+```
+
 ## Adding a skill
 
 1. Pick a domain directory under `src/neutron_skills/skills/`.
