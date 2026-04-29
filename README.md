@@ -103,84 +103,70 @@ python examples/langchain_ollama_selector.py \
     "scan script on EQSANS"
 ```
 
-## Tool calling: shipping executable helpers with a skill
+## Tool calling: shipping executable scripts with a skill
 
-A skill can ship **plain Python callables** alongside its instructions so
-an agent can perform concrete work (compute, validate, transform, …)
-through tool calls instead of free-form text.
+A skill can ship **CLI scripts** alongside its instructions so an agent
+can perform concrete work (compute, validate, transform, …) by running
+them via `uv run` in a subprocess. This is secure — no dynamic code
+import, no `importlib` tricks — the script runs in an isolated
+environment and communicates via JSON on stdout.
 
 ### Convention
 
-Drop a Python module under `<skill>/scripts/` that exposes a
-module-level `TOOLS` list of plain callables:
+Drop a PEP 723 Python script under `<skill>/scripts/` with CLI
+subcommands:
 
 ```python
-# src/neutron_skills/skills/<domain>/<skill>/scripts/tools.py
-import math
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = []
+# ///
 
-def compute_q(theta_deg: float, wavelength_aa: float) -> dict[str, float]:
-    """
-    Compute the momentum transfer Q for elastic scattering.
+import argparse, json, math
 
-    Args:
-        theta_deg: HALF the scattering angle, in degrees.
-        wavelength_aa: Neutron wavelength in angstroms.
-
-    Returns:
-        Dict with key ``Q`` in 1/Å.
-    """
+def compute_q(theta_deg: float, wavelength_aa: float) -> dict:
     q = 4 * math.pi / wavelength_aa * math.sin(math.radians(theta_deg))
     return {"Q": q}
 
-TOOLS = [compute_q]
+def main():
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("compute-q")
+    p.add_argument("--theta-deg", type=float, required=True)
+    p.add_argument("--wavelength", type=float, required=True)
+    args = parser.parse_args()
+    print(json.dumps(compute_q(args.theta_deg, args.wavelength)))
+
+if __name__ == "__main__":
+    main()
 ```
 
 Rules:
 
-- Use **type hints** on every parameter — they become the JSON schema.
-- Write a clear **docstring** — it becomes the tool description.
-- Keep imports to the **standard library** (or what the skill genuinely
-  needs). The module must NOT depend on a specific agent framework, so
-  any runtime can wrap it.
-- Tool names must be unique across all bundled skills (prefix with the
-  skill name if you risk a collision).
-- Files starting with `_` are ignored.
-- List the tool names in the `SKILL.md` body so the LLM knows what's
-  available when the skill is in context.
+- Accept all input through **CLI flags** — no interactive prompts.
+- Send structured data (JSON) to **stdout**; diagnostics to **stderr**.
+- Provide a useful **`--help`** output so the agent can discover the interface.
+- Use **meaningful exit codes** (0 = success, 2 = bad arguments, 1 = unexpected error).
+- Declare dependencies using [PEP 723](https://peps.python.org/pep-0723/)
+  inline metadata so `uv run` can install them automatically.
+- List the script and its subcommands in the `SKILL.md` body so the LLM
+  knows what's available when the skill is in context.
 
 The retrieved `Skill.directory` and `Skill.resources` fields point at
-these files — runtimes are responsible for discovering and wrapping them.
+these files.
 
-### Discovering tools at runtime
+### Running a skill's tools
 
-Use :func:`neutron_skills.load_skill_tools` to import every matched
-skill's ``scripts/*.py`` modules and collect their ``TOOLS`` lists as
-plain Python callables:
+Use `uv run` to execute a skill's script in an isolated environment:
 
-```python
-from neutron_skills import retrieve, load_skill_tools
-
-skills = retrieve("scattering angle 0.5 deg, wavelength 6 A")
-callables, sources = load_skill_tools(skills)
-# callables: list[Callable]   — plain Python functions
-# sources:   list[str]        — "<skill>:<file>:<callable>" for logging
+```bash
+uv run src/neutron_skills/skills/general-scattering/q-range-basics/scripts/q_range_tools.py \
+    compute-q --theta-deg 0.25 --wavelength 6.0
 ```
 
-This is **opt-in and side-effecting** — it imports skill modules,
-executing their top-level code. The plain :func:`retrieve` call never
-imports skill scripts.
-
-Then wrap each callable in your runtime's tool format:
-
-| Runtime | Wrap with |
-|---|---|
-| LangChain | `langchain_core.tools.StructuredTool.from_function(fn)` |
-| OpenAI | `openai.pydantic_function_tool(fn)` (or build a JSON schema from `inspect.signature` + docstring) |
-| Anthropic | Build the `input_schema` dict from `inspect.signature` |
-| MCP | Register with `mcp.server.Server.list_tools` / `call_tool` |
-
-A complete LangChain + Ollama agent loop using this pattern is in
-[examples/langchain_ollama_toolcalling.py](examples/langchain_ollama_toolcalling.py).
+A complete Python example that chains multiple tool calls via subprocess
+is in [examples/uv_toolcalling.py](examples/uv_toolcalling.py).
 
 ## Adding a skill
 

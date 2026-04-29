@@ -8,7 +8,7 @@ agent stacks.
 | File | What it shows |
 |---|---|
 | [langchain_ollama_selector.py](langchain_ollama_selector.py) | A [LangChain](https://python.langchain.com/) + [Ollama](https://ollama.com/) implementation of the `LLMSelector` protocol, plus an end-to-end chain that splices the retrieved skill bodies into a chat prompt. |
-| [langchain_ollama_toolcalling.py](langchain_ollama_toolcalling.py) | A skill-driven **tool-calling** agent with **dynamic tool discovery**. Retrieves the matching skill(s), scans each skill's `scripts/*.py` for module-level `TOOLS` lists of plain Python callables, wraps them into LangChain `StructuredTool`s at load time, and binds them to a tool-capable Ollama model. The skill scripts themselves have **no LangChain dependency** — see the bundled [q-range-basics tools](../src/neutron_skills/skills/general-scattering/q-range-basics/scripts/tools.py). Requires a tool-calling-capable model (e.g. `llama3.1:8b`, `qwen2.5:7b`). |
+| [uv_toolcalling.py](uv_toolcalling.py) | Calls a skill's bundled CLI tools via `uv run` subprocess — no dynamic code import, no agent framework needed. Retrieves the `q-range-basics` skill, locates `scripts/q_range_tools.py`, and chains its subcommands (`half-angle`, `compute-q`, `compute-d-spacing`) to compute Q and d-spacing from a scattering angle. Requires only `uv` on PATH. |
 
 ## Prerequisites
 
@@ -55,57 +55,55 @@ python examples/langchain_ollama_selector.py \
     "How do I choose a Q-range for a SANS experiment?"
 ```
 
-## Running the tool-calling example
+## Running the uv tool-calling example
 
-This example needs a **tool-calling-capable** model. Pull one first:
-
-```bash
-ollama pull llama3.1:8b      # or: qwen2.5:7b, mistral-nemo
-```
-
-Then run with the default query (a SANS Q computation):
+This example requires only `uv` on your PATH (no Ollama, no extras):
 
 ```bash
-python examples/langchain_ollama_toolcalling.py
+# Install uv: https://docs.astral.sh/uv/
+pip install -e .
+python examples/uv_toolcalling.py
 ```
 
-Or supply your own:
+You should see the tool chain its subcommands (`half-angle` → `compute-q`
+→ `compute-d-spacing`) and print Q and d-spacing for the default
+scattering angle.
+
+Customise the parameters:
 
 ```bash
-python examples/langchain_ollama_toolcalling.py \
-    --model llama3.1:8b \
-    "I want to look at features of size 200 A using lambda = 5 A. What 2theta do I need?"
+python examples/uv_toolcalling.py \
+    --two-theta-deg 1.0 \
+    --wavelength 5.0
 ```
 
-You should see the agent loop print each tool call and result, then a
-final natural-language answer that quotes the computed values and
-references the retrieved skill.
+You can also call the script directly (bypassing the Python wrapper):
 
-### Authoring tools for a skill
+```bash
+uv run src/neutron_skills/skills/general-scattering/q-range-basics/scripts/q_range_tools.py \
+    compute-q --theta-deg 0.25 --wavelength 6.0
+```
 
-To add tools to your own skill, drop a Python file in `<skill>/scripts/`
-that exposes a module-level `TOOLS` list of plain Python callables.
-**No LangChain (or any other agent framework) import required** — the
-example wraps each callable into a `StructuredTool` at load time using
-the function's type hints and docstring:
+### Authoring uv scripts for a skill
+
+Bundle a `scripts/*.py` file that declares its own dependencies using
+[PEP 723](https://peps.python.org/pep-0723/) inline metadata:
 
 ```python
-# src/neutron_skills/skills/<domain>/<skill>/scripts/tools.py
-def my_calculator(x: float, y: float) -> float:
-    """Short description used as the tool schema."""
-    return x + y
-
-TOOLS = [my_calculator]
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#   "numpy>=1.24",
+# ]
+# ///
 ```
 
-Guidelines:
+Design guidelines (from the Agent Skills spec):
 
-- Add **type hints** on every parameter — they become the JSON schema.
-- Write a clear **docstring** — it becomes the tool description.
-- Keep the file's imports to the **standard library** (or libraries the
-  skill genuinely needs). Other runtimes (OpenAI function calling,
-  Anthropic tool use, MCP, …) can wrap the same callables in their own
-  formats.
-- Tool names must be unique across all bundled skills (prefix with the
-  skill name if you risk a collision). Files starting with `_` are
-  ignored.
+- Accept all input through **CLI flags** — no interactive prompts.
+- Send structured data (JSON) to **stdout**; diagnostics to **stderr**.
+- Provide a useful **`--help`** output so the agent can discover the interface.
+- Use **meaningful exit codes** (0 = success, 2 = bad arguments, 1 = unexpected error).
+- Support **`--output FILE`** for large results so the agent isn't flooded.
+
+See [src/neutron_skills/skills/general-scattering/q-range-basics/scripts/q_range_tools.py](../src/neutron_skills/skills/general-scattering/q-range-basics/scripts/q_range_tools.py) for a complete reference implementation.

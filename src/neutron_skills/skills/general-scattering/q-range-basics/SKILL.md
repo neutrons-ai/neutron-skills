@@ -36,11 +36,15 @@ where $2\theta$ is the scattering angle and $\lambda$ is the neutron wavelength.
 - Forgetting that $Q_{min}$ is set by the beamstop, not just $\lambda$.
 - Using too-long wavelengths when shorter $d$ also matter — you lose $Q_{max}$.
 
-## Available tools (when bound)
+## Available scripts
 
-If the agent has tools bound from this skill's `scripts/tools.py`, use them
-for any concrete numeric work instead of doing arithmetic in your head:
+- **`scripts/q_range_tools.py`** — Standalone PEP 723 CLI script (no dependencies).
+  Provides subcommands for Q-range calculations. Run with `uv`:
 
-- `compute_q(theta_deg, wavelength_aa)` — Q from θ and λ.
-- `compute_d_spacing(q_inv_aa)` — real-space length scale d ≈ 2π/Q.
-- `half_angle(two_theta_deg)` — convert 2θ → θ before calling `compute_q`.
+  ```bash
+  uv run scripts/q_range_tools.py compute-q --theta-deg 0.25 --wavelength 6.0
+  uv run scripts/q_range_tools.py compute-d-spacing --q 0.00456
+  uv run scripts/q_range_tools.py half-angle --two-theta-deg 0.5
+  ```
+
+  Use `--help` on any subcommand for details.
