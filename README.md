@@ -191,6 +191,25 @@ A complete LangChain + Ollama agent loop using this pattern is in
    deterministic retriever.
 5. Validate: `neutron-skills validate <path-to-skill>`.
 
+### Instrument-specific naming (SNS and HFIR)
+
+For instrument-specific contributions, use the global skill name pattern:
+
+- `facility-instrument-topic`
+- Example: `sns-snap-reduction-diagnostics`
+
+Keep skill placement flat by domain so retrieval can infer domains correctly:
+
+- `src/neutron_skills/skills/<domain>/<skill-name>/SKILL.md`
+
+SNAP-specific note:
+
+- Initial SNAP contributions are focused on data reduction.
+- SNAP reduction skills should include software provenance in `metadata.software`
+    and in the body (for example Mantid, `snapred`, `snapwrap`).
+- This does not block future non-reduction SNAP skills; they should follow the
+    same naming and placement scheme.
+
 See [src/neutron_skills/skills/README.md](src/neutron_skills/skills/README.md)
 for authoring conventions and [docs/ground_truths.md](docs/ground_truths.md)
 for recorded project decisions.
