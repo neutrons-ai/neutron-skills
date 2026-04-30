@@ -112,6 +112,28 @@ Rationale:
 - Supports maintainer preference that helpful reference material may live with
   skills without coupling the code path to repository-bound data files.
 
+## 2026-04-30: Prototype human-review metadata convention for skills
+
+Decision:
+
+- Skills may include an optional `review` frontmatter block during prototype-stage
+  curation.
+- Recommended fields are:
+  - `status`
+  - `reviewer`
+  - `reviewed_on`
+  - `basis`
+  - `notes`
+- This metadata records human review provenance, but is not itself a cryptographic
+  authenticity mechanism.
+
+Rationale:
+
+- Keeps review state visible in the skill file without changing loader behavior.
+- Fits the current parser, which preserves extra frontmatter fields.
+- If stronger authentication is needed later, use signed git commits or tags
+  rather than in-file signatures.
+
 ## Instrument-specific decisions
 
 Decisions that are scoped to a single instrument live in `docs/instruments/`.

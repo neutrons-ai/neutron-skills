@@ -98,6 +98,9 @@ running detailed steps.
 
 ## Context to collect before use
 
-- Experiment mode, sample environment, and target output format.
+- Experiment mode and target output format.
+- Sample environment context (assembly type such as `assembly.pe` or `assembly.dac`,
+  plus nickname/model/comment when available via SEEMeta).
 - Calibration files and their validity window.
+- Whether cycle-strict calibration matching should remain enabled (`requireSameCycle`).
 - Any known run exclusions or detector masking requirements.
