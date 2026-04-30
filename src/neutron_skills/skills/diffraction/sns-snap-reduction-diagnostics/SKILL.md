@@ -2,6 +2,15 @@
 name: sns-snap-reduction-diagnostics
 description: Diagnose quality issues in SNAP reduction outputs and propose targeted fixes. Use when reduced diffraction products show artifacts, unstable baselines, inconsistent normalization, or unexpected peak behavior.
 version: 1
+review:
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-04-30
+  basis: [docs, code, instrument-science-review]
+  notes: >
+    Clarified root-cause coverage to include sample-environment-specific corrections
+    and added a high-value masking-failure check for large background artifacts.
+  approved_commit: review/sns-snap-reduction-diagnostics-v1
 metadata:
   facility: SNS
   beamline: BL3
@@ -60,6 +69,7 @@ prioritize corrective actions.
 ## Root-cause categories
 
 - Calibration mismatch or stale calibration products.
+- Sample-environment-specific corrections not represented in calibration or reduction assumptions.
 - Geometry/masking choices suppressing valid signal.
 - Background or normalization configuration drift.
 - Run metadata mismatch across grouped reductions.
@@ -70,15 +80,17 @@ prioritize corrective actions.
 - Confirm continue-policy inputs used in the run (`continueNoDifcal`, `continueNoVan`, `noNorm`).
 - Check whether cycle matching was strict (`requireSameCycle=True`) and whether an out-of-cycle calibration was rejected.
 - Inspect number and geometry of masked pixels; large clusters often indicate upstream issues.
+- Check for observed masking failures that leave large background artifacts in reduced output.
 - Compare calibration metrics across groups and against previous state-compatible calibrations.
 - If CIS mode is enabled, inspect retained intermediate workspaces for offset saturation,
   failed groups, or unstable fits.
 
 ## Resampling interpretation
 
-- `sampleFactor=1` means no effective change in bin spacing.
+- `sampleFactor=1` means no effective change in bin spacing. 
 - `sampleFactor<1` coarsens bins (downsampling).
 - `sampleFactor>1` refines bins (upsampling) and is warned as lossy in current tooling.
+- rebinning as a result of resampling uses parameters that are specific for each spectrum in a pixel grouping scheme.
 
 ## Output expectations
 
