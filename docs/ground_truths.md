@@ -27,7 +27,7 @@ Facility-level data model facts (source type, event format, NeXus schema,
 Mantid workspace types) live in `docs/facilities/`:
 
 - [docs/facilities/sns.md](facilities/sns.md) — SNS pulsed source, event mode, TOF
-- [docs/facilities/hfir.md](facilities/hfir.md) — HFIR steady-state source
+- [docs/facilities/hfir.md](facilities/hfir.md) — HFIR steady-state source, event mode
 
 ## 2026-04-29: Instrument knowledge ingestion workflow
 
