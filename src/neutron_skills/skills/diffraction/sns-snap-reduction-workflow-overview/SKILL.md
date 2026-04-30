@@ -2,6 +2,16 @@
 name: sns-snap-reduction-workflow-overview
 description: Outline the end-to-end SNAP data-reduction workflow and decision points. Use when deciding the sequence of preprocessing, calibration, normalization, and output products for SNAP diffraction data.
 version: 1
+review:
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-04-30
+  basis: [docs, code, instrument-science-review]
+  notes: >
+    Clarified reduction-level context requirements, including sample-environment
+    assembly context and cycle-strict calibration matching policy, and added
+    explicit sample-environment handling in the recommended workflow sequence.
+  approved_commit: review/sns-snap-reduction-workflow-overview-v1
 metadata:
   facility: SNS
   beamline: BL3
@@ -82,10 +92,11 @@ running detailed steps.
 1. Verify input runs and metadata consistency.
 2. Resolve calibration context (difcal + normcal) for the instrument state.
 3. Choose grouping and masking strategy based on the resolution/statistics tradeoff.
-4. Run reduction path and check output label (`reduced` vs `diagnostic`).
-5. Perform background handling and normalization checks.
-6. Convert/bin/export for downstream analysis (`gsa`, `xye`, `csv` as needed).
-7. Capture diagnostics and provenance for reproducibility.
+4. Identify specific sample environments and create derivative reduction inputs (e.g. specific bin or pixels masks and attenuation correction)
+5. Run reduction path adapting the workflow as needed for specific sample environments and check output label (`reduced` vs `diagnostic`).
+6. Perform background handling and normalization checks.
+7. Convert/bin/export for downstream analysis (`gsa`, `xye`, `csv` as needed).
+8. Capture diagnostics and provenance for reproducibility.
 
 ## Quality gates
 
