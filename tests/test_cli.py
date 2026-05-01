@@ -149,3 +149,151 @@ def test_version():
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
     assert "0.1.0" in result.output
+
+
+def _seed_corpus(catalog_path: Path) -> None:
+    catalog_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "script_id": "a",
+                        "source_path": "/tmp/a.py",
+                        "ipts": 33219,
+                        "active": True,
+                        "run_numbers_detected": [1, 2],
+                        "run_titles_resolved": {"1": {"status": "resolved", "title": "Run 1"}},
+                        "parse_status": "ok",
+                        "run_meta_resolved": {
+                            "1": {
+                                "type": "assembly.dac",
+                                "nickname": "DAC",
+                                "model": "DAC-X",
+                            }
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "script_id": "b",
+                        "source_path": "/tmp/b.py",
+                        "ipts": 33220,
+                        "active": False,
+                        "run_numbers_detected": [],
+                        "run_titles_resolved": {},
+                        "parse_status": "ok",
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _seed_payload(payload_path: Path) -> None:
+    payload_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "script_id": "a",
+                        "content_hash": "h1",
+                        "script_text": "cheese = mut.swissCheese()\nwrap.reduce(1)\nwrap.resample(0.5)",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "script_id": "b",
+                        "content_hash": "h2",
+                        "script_text": "wrap.reduce(2)",
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_corpus_summary_json(tmp_path: Path):
+    catalog = tmp_path / "scripts_catalog.jsonl"
+    _seed_corpus(catalog)
+    runner = CliRunner()
+    result = runner.invoke(main, ["corpus-summary", str(catalog), "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["total_records"] == 2
+    assert data["active_records"] == 1
+    assert data["ipts_count"] == 2
+
+
+def test_corpus_list_active_only(tmp_path: Path):
+    catalog = tmp_path / "scripts_catalog.jsonl"
+    _seed_corpus(catalog)
+    runner = CliRunner()
+    result = runner.invoke(main, ["corpus-list", str(catalog), "--active-only"])
+    assert result.exit_code == 0, result.output
+    assert "/tmp/a.py" in result.output
+    assert "/tmp/b.py" not in result.output
+
+
+def test_corpus_list_json_ipts_filter(tmp_path: Path):
+    catalog = tmp_path / "scripts_catalog.jsonl"
+    _seed_corpus(catalog)
+    runner = CliRunner()
+    result = runner.invoke(main, ["corpus-list", str(catalog), "--ipts", "33220", "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert len(data) == 1
+    assert data[0]["script_id"] == "b"
+
+
+def test_snap_corpus_join_json(tmp_path: Path):
+    catalog = tmp_path / "scripts_catalog.jsonl"
+    payload = tmp_path / "scripts_payload.jsonl"
+    _seed_corpus(catalog)
+    _seed_payload(payload)
+    runner = CliRunner()
+    result = runner.invoke(main, ["snap-corpus-join", str(catalog), str(payload), "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["summary"]["total_joined_records"] == 2
+    assert data["summary"]["records_with_assembly_dac"] == 1
+    assert len(data["records"]) == 2
+
+
+def test_snap_corpus_archetypes_json(tmp_path: Path):
+    catalog = tmp_path / "scripts_catalog.jsonl"
+    payload = tmp_path / "scripts_payload.jsonl"
+    _seed_corpus(catalog)
+    _seed_payload(payload)
+    runner = CliRunner()
+    result = runner.invoke(main, ["snap-corpus-archetypes", str(catalog), str(payload), "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert "archetype_id" in data[0]
+
+
+def test_snap_corpus_exemplars_json(tmp_path: Path):
+    catalog = tmp_path / "scripts_catalog.jsonl"
+    payload = tmp_path / "scripts_payload.jsonl"
+    _seed_corpus(catalog)
+    _seed_payload(payload)
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "snap-corpus-exemplars",
+            str(catalog),
+            str(payload),
+            "--max-per-archetype",
+            "1",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert isinstance(data, list)

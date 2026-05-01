@@ -177,9 +177,38 @@ is in [examples/uv_toolcalling.py](examples/uv_toolcalling.py).
    deterministic retriever.
 5. Validate: `neutron-skills validate <path-to-skill>`.
 
+### Instrument-specific naming (SNS and HFIR)
+
+For instrument-specific contributions, use the global skill name pattern:
+
+- `facility-instrument-topic`
+- Example: `sns-snap-reduction-diagnostics`
+
+Keep skill placement flat by domain so retrieval can infer domains correctly:
+
+- `src/neutron_skills/skills/<domain>/<skill-name>/SKILL.md`
+
+SNAP-specific note:
+
+- Initial SNAP contributions are focused on data reduction.
+- SNAP reduction skills should include software provenance in `metadata.software`
+    and in the body (for example Mantid, `snapred`, `snapwrap`).
+- This does not block future non-reduction SNAP skills; they should follow the
+    same naming and placement scheme.
+
 See [src/neutron_skills/skills/README.md](src/neutron_skills/skills/README.md)
 for authoring conventions and [docs/ground_truths.md](docs/ground_truths.md)
 for recorded project decisions.
+
+### Human skill review vs other review types
+
+This repository uses multiple review processes. Human review of skill content
+(frontmatter `review` block updates, review commit, and review tag) is
+documented in
+[src/neutron_skills/skills/README.md](src/neutron_skills/skills/README.md#human-skill-review-workflow-content-review).
+
+This is distinct from code/test/security/design reviews, which assess software
+changes rather than skill-content approval state.
 
 ## Running tests
 
