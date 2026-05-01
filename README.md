@@ -214,6 +214,16 @@ See [src/neutron_skills/skills/README.md](src/neutron_skills/skills/README.md)
 for authoring conventions and [docs/ground_truths.md](docs/ground_truths.md)
 for recorded project decisions.
 
+### Human skill review vs other review types
+
+This repository uses multiple review processes. Human review of skill content
+(frontmatter `review` block updates, review commit, and review tag) is
+documented in
+[src/neutron_skills/skills/README.md](src/neutron_skills/skills/README.md#human-skill-review-workflow-content-review).
+
+This is distinct from code/test/security/design reviews, which assess software
+changes rather than skill-content approval state.
+
 ## Running tests
 
 ```bash

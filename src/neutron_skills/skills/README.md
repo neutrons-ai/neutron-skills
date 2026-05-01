@@ -159,3 +159,78 @@ Validate with:
 ```bash
 neutron-skills validate src/neutron_skills/skills/<domain>/<skill-name>
 ```
+
+## Human skill review workflow (content review)
+
+This workflow is for **human review of skill content** (scientific accuracy,
+operational correctness, and provenance) and is intentionally separate from
+code review workflows.
+
+Use this process when a scientist/instrument expert peer-reviews a skill and
+approves it for v1 publication.
+
+### Scope and distinction
+
+- Human skill review: updates the `review` frontmatter block in `SKILL.md` and
+  creates a review tag for traceability.
+- Code review: checks Python/source changes.
+- Test review: checks test quality/coverage.
+- Security review: checks vulnerabilities/secrets/unsafe patterns.
+- Design review: checks architecture/UX patterns.
+
+Do not substitute one review type for another; they answer different questions.
+
+### Required frontmatter updates
+
+For an approved skill, set:
+
+- `review.status: human-reviewed`
+- `review.reviewer: <Reviewer Name>`
+- `review.reviewed_on: YYYY-MM-DD`
+- `review.basis: [<basis-1>, <basis-2>, ...]`
+- `review.approved_commit: review/<skill-name>-v1`
+
+`review.notes` should include a concise statement of what was reviewed and by
+whom.
+
+### Commit and tag procedure
+
+1. Validate the reviewed skill:
+
+```bash
+pixi exec --spec python=3.11 --spec click --spec pyyaml env PYTHONPATH=src \
+  python -m neutron_skills.cli validate src/neutron_skills/skills/<domain>/<skill-name>
+```
+
+2. Stage only review-related files:
+
+```bash
+git add src/neutron_skills/skills/<domain>/<skill-name>/SKILL.md
+```
+
+3. Commit:
+
+```bash
+git commit -m "Review <skill-name> skill (v1)"
+```
+
+4. Tag the same commit:
+
+```bash
+git tag review/<skill-name>-v1
+```
+
+5. Push branch and tag:
+
+```bash
+git push origin <branch>
+git push origin review/<skill-name>-v1
+```
+
+### Quick reviewer checklist
+
+- [ ] Skill content is scientifically/operationally correct.
+- [ ] Frontmatter review block is complete and accurate.
+- [ ] `neutron-skills validate` passes for the skill.
+- [ ] Commit message follows `Review <skill-name> skill (v1)`.
+- [ ] Tag follows `review/<skill-name>-v1` and points at the review commit.
