@@ -134,6 +134,30 @@ Rationale:
 - If stronger authentication is needed later, use signed git commits or tags
   rather than in-file signatures.
 
+## 2026-05-01: High-pressure analysis requires pressure-state indexing
+
+Decision:
+
+- For high-pressure analysis-stage skills, ambient-pressure structures are
+  treated as starting guesses only.
+- Rietveld workflows should pre-index the measured high-pressure lattice
+  before full refinement when peak shifts are significant.
+- Background extraction methods that depend on Bragg-peak locations must use
+  pressure-appropriate peak positions rather than ambient references.
+
+Rationale:
+
+- Pressure can induce anisotropic and non-uniform peak shifts, especially in
+  low-symmetry and layered structures.
+- Seeding refinement from ambient parameters alone can lead to unstable or
+  biased fits.
+- Incorrect peak masks can bias peak/background deconvolution and downstream
+  refined parameters.
+
+Reference:
+
+- [src/neutron_skills/skills/diffraction/sns-snap-high-pressure-data-interpretation/SKILL.md](../src/neutron_skills/skills/diffraction/sns-snap-high-pressure-data-interpretation/SKILL.md)
+
 ## Instrument-specific decisions
 
 Decisions that are scoped to a single instrument live in `docs/instruments/`.

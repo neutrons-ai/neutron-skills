@@ -9,7 +9,11 @@ interpretation of high pressure powder data skill
 
 The nature of high pressure (and more generally many other in situ or in operando) diffraction measurements invariably results in challenging datasets. This skill summarizes specific instances provides answers to how to identify and how to manage through both physical intervention in the experimental process and during subsequent analysis.
 
-## multiple phases
+## Variable structure
+
+One of the most important consequence of high pressure is that it can dramatically modify structure. This can span the gamut from delicate tuning of a bondlength or angle through to wholesale restructuring via phase transitions. Most structural databases are dominated by ambient pressure structures so, at best, should be treated as a starting point for any analysis of in situ high-pressure data. Importantly for Rietveld analysis, this essentially demands pre-indexing of the as-measured lattice to provide a sufficiently accurate starting point for the refinement. This can be non-trivial for lower symmetry phases of, for example, in layered structures where compression can be highly anistropic causing some Bragg peaks to move more than others. Beyond refinements, there is also an impact on background extraction techniques that have to be aware of the location of Bragg peaks in order to deconvolve signal from background. 
+
+## Multiple phases
 
 Phase transitions, sample decomposition, the likely presence of auxiliary materials (e.g. pressure media of pressure calibrants) and potential contaminant Bragg scattering from the pressure cell can often lead to multiple phases in the sample. Where possible this should be mitigated at the experimental stage as the nature of powder diffraction signal means that scattering from all illuminated, materials and phases are all superimposed in the final pattern. During analysis, the approach is to include multiple phases in the Rietveld model. 
 
