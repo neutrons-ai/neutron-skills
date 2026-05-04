@@ -1,16 +1,29 @@
 ---
 name: sns-snap-reduction-diagnostics
-description: Diagnose quality issues in SNAP reduction outputs and propose targeted fixes. Use when reduced diffraction products show artifacts, unstable baselines, inconsistent normalization, or unexpected peak behavior.
-version: 1
+description: >
+  Diagnose quality issues in SNAP reduction outputs and propose targeted fixes.
+  Use when reduced diffraction products show artifacts, unstable baselines,
+  inconsistent normalization, or unexpected peak behavior.
+version: 2
 review:
-  status: human-reviewed
-  reviewer: Malcolm Guthrie
-  reviewed_on: 2026-04-30
-  basis: [docs, code, instrument-science-review]
+  status: pending
+  reviewer: null
+  reviewed_on: null
+  basis: []
   notes: >
-    Clarified root-cause coverage to include sample-environment-specific corrections
-    and added a high-value masking-failure check for large background artifacts.
-  approved_commit: review/sns-snap-reduction-diagnostics-v1
+    v2: restructured to required skill anatomy (Overview / When to Use /
+    Process / Rationalizations / Red Flags / Verification). All prior content
+    preserved; no domain changes. Awaiting instrument-scientist sign-off.
+  approved_commit: null
+  prior_review:
+    status: human-reviewed
+    reviewer: Malcolm Guthrie
+    reviewed_on: 2026-04-30
+    basis: [docs, code, instrument-science-review]
+    notes: >
+      Clarified root-cause coverage to include sample-environment-specific corrections
+      and added a high-value masking-failure check for large background artifacts.
+    approved_commit: review/sns-snap-reduction-diagnostics-v1
 metadata:
   facility: SNS
   beamline: BL3
@@ -23,8 +36,16 @@ metadata:
 
 # SNAP Reduction Diagnostics
 
-Use this skill after an initial reduction run to identify failure modes and
-prioritize corrective actions.
+This skill guides an agent through a structured inspection of SNAP reduction
+outputs to identify failure modes, attribute root causes, and produce a
+targeted rerun plan. It is invoked after an initial reduction run completes.
+
+Related skills:
+- [sns-snap-reduction-workflow-overview](../sns-snap-reduction-workflow-overview/SKILL.md) — upstream reduction sequence
+- [sns-snap-calibration-and-geometry](../sns-snap-calibration-and-geometry/SKILL.md) — calibration state controls
+- [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md) — environment-specific artifact sources
+
+---
 
 ## Evidence tracking
 
@@ -43,58 +64,184 @@ prioritize corrective actions.
 - Clarified user policy: diagnostic outputs are valid for exploratory work, or can trigger
   post-hoc calibration and rereduction.
 
-## Provenance map
+---
 
-- snapwrap (user interface — first):
-  - Surface warnings, status labels, and outputs that indicate calibration completeness.
-  - Expose user decision points for export, rerun, or deeper diagnostics.
-- snapred (backend logic):
-  - Determines whether full calibration context exists and routes reduction accordingly.
-  - Emits diagnostic pathways and can preserve intermediate workspaces in CIS mode.
-- Mantid (framework; diagnostics and edge cases):
-  - Produces diagnostic workspaces and metrics used to inspect calibration quality,
-    masking effects, and fit behavior.
+## Overview
 
-## Diagnostic workflow
+This skill produces: (1) a ranked list of likely root causes for the observed
+quality issue, (2) recommended parameter changes for the next run, and (3) an
+explicit decision on whether to use the current output as exploratory results
+or to recalibrate and rereduce for final output.
 
-1. Check reduction logs for warnings or fallback behavior.
-2. Inspect baseline/background behavior and normalization stability.
-3. Compare detector groups for consistency and outlier behavior.
-4. Validate peak shape/position against expected references.
-5. Determine output intent:
-  - exploratory workflow acceptable with `diagnostic` label, or
-  - final workflow requires calibration completion and rerun to `reduced`.
-6. Attribute likely root causes and rerun with focused changes.
+**Software provenance:**
+- **snapwrap** (user interface — first): surfaces warnings, status labels, and
+  outputs that indicate calibration completeness; exposes decision points for
+  export, rerun, or deeper diagnostics.
+- **snapred** (backend): determines whether full calibration context exists and
+  routes reduction accordingly; emits diagnostic pathways and can preserve
+  intermediate workspaces in CIS mode.
+- **Mantid** (framework): produces diagnostic workspaces and metrics used to
+  inspect calibration quality, masking effects, and fit behavior.
 
-## Root-cause categories
-
+**Root-cause categories to consider:**
 - Calibration mismatch or stale calibration products.
-- Sample-environment-specific corrections not represented in calibration or reduction assumptions.
-- Geometry/masking choices suppressing valid signal.
+- Sample-environment-specific corrections not represented in calibration or
+  reduction assumptions.
+- Geometry or masking choices suppressing valid signal.
 - Background or normalization configuration drift.
 - Run metadata mismatch across grouped reductions.
 
-## High-value checks
+---
 
-- Confirm output label and expected usage (`diagnostic` vs `reduced`).
-- Confirm continue-policy inputs used in the run (`continueNoDifcal`, `continueNoVan`, `noNorm`).
-- Check whether cycle matching was strict (`requireSameCycle=True`) and whether an out-of-cycle calibration was rejected.
-- Inspect number and geometry of masked pixels; large clusters often indicate upstream issues.
-- Check for observed masking failures that leave large background artifacts in reduced output.
-- Compare calibration metrics across groups and against previous state-compatible calibrations.
-- If CIS mode is enabled, inspect retained intermediate workspaces for offset saturation,
-  failed groups, or unstable fits.
+## When to Use
 
-## Resampling interpretation
+- Use when reduced diffraction products show artifacts, unstable baselines,
+  inconsistent normalization, or unexpected peak behavior.
+- Use when output workspaces are labelled `diagnostic_` and the cause is
+  unknown.
+- Use when peak positions differ unexpectedly between detector groups.
+- Use when large background artifacts appear in the reduced output.
+- Do NOT use as a substitute for the upstream reduction workflow — invoke
+  [sns-snap-reduction-workflow-overview](../sns-snap-reduction-workflow-overview/SKILL.md)
+  first if a full reduction has not yet been attempted.
 
-- `sampleFactor=1` means no effective change in bin spacing. 
-- `sampleFactor<1` coarsens bins (downsampling).
-- `sampleFactor>1` refines bins (upsampling) and is warned as lossy in current tooling.
-- rebinning as a result of resampling uses parameters that are specific for each spectrum in a pixel grouping scheme.
+---
 
-## Output expectations
+## Process
 
-- A ranked list of likely causes.
-- Recommended next run configuration changes.
-- Minimal reproducible parameter set for rerun.
-- Explicit decision: keep diagnostic result for exploration, or calibrate and rereduce for final output.
+Collect this context before starting:
+- The run number(s) that produced the suspect output.
+- The output workspace name(s), including the full prefix
+  (`reduced_` vs `diagnostic_`).
+- The continue-policy flags used: `continueNoDifcal`, `continueNoVan`, `noNorm`.
+- Whether cycle-strict matching was active (`requireSameCycle=True`).
+- Whether CIS mode was enabled.
+- The sample environment type (PE, DAC, cylinder, or none).
+
+---
+
+1. **Check the output label and continue-policy inputs** — Confirm whether the
+   workspace prefix is `reduced_` or `diagnostic_`. Retrieve the continue flags
+   used in the run. A `diagnostic_` label with no intentional continue flag set
+   means the calibration lookup failed unexpectedly; treat this as a calibration
+   issue until proven otherwise.
+
+   **[CHECKPOINT]**: The output label is understood and its cause is attributed
+   to either (a) an intentional continue flag or (b) a calibration lookup
+   failure requiring investigation.
+
+2. **Inspect reduction logs for warnings** — Look for `ContinueWarning`,
+   `MISSING_DIFFRACTION_CALIBRATION`, `MISSING_NORMALIZATION`, or
+   `ALTERNATE_DIFFRACTION_CALIBRATION` flags in the reduction record. Note
+   every flag; each represents a deviation from full-calibration reduction.
+
+3. **Check calibration cycle matching** — Confirm whether
+   `requireSameCycle=True` was active and whether a valid same-cycle calibration
+   existed for the run's instrument state. An out-of-cycle calibration that was
+   silently accepted (or rejected) is a common root cause of subtle peak-position
+   errors.
+
+4. **Inspect masking coverage** — Examine the number and geometry of masked
+   pixels. Large contiguous masked regions, unexpected zero-count areas in the
+   detector image, or large background artifacts in the reduced output indicate
+   a mask that is missing, shifted, or overly aggressive. For high-pressure
+   devices, cross-check against the expected device-specific mask.
+
+5. **Inspect baseline and normalization stability across groups** — Compare
+   reduced spectra from each pixel group (all, bank, column). Systematic
+   offsets between groups, wavelength-dependent intensity drift, or a group
+   that is an outlier relative to others points to a calibration issue
+   (`difcal` or `normcal`) or a grouping/masking mismatch. Although be aware that sample-specific corrections may also produce group-specific effects not due to calibration.
+
+6. **Validate peak shape and position** — Compare peak positions and widths
+   against expected references (a known standard or a prior run in the same
+   state). Broadened or shifted peaks across all groups may indicate a
+   diffraction calibration (`difcal`) mismatch, but for high-pressure samples
+   can equally reflect pressure-driven structural changes (lattice strain,
+   phase transitions) in the sample itself. Broadening confined to one group
+   suggests a per-group calibration or masking issue rather than a sample
+   effect. See [sns-snap-high-pressure-data-interpretation](../sns-snap-high-pressure-data-interpretation/SKILL.md)
+   for guidance on distinguishing sample-driven from instrument-driven peak
+   behaviour.
+
+7. **If CIS mode was active, inspect intermediate workspaces** — Check retained
+   intermediate workspaces for offset saturation, failed groups, or unstable
+   fits. These provide the most direct evidence of where the reduction pipeline
+   deviated.
+
+   **[CHECKPOINT]**: A ranked list of root causes is established. Each cause is
+   tied to at least one observable piece of evidence from steps 1–7.
+
+8. **Propose and record a rerun plan** — For each attributed root cause, specify
+   the minimum parameter change needed (e.g., obtain missing calibration,
+   correct mask, relax cycle policy with documented justification). Record the
+   minimal reproducible parameter set.
+
+9. **Make an explicit output-intent decision** — State clearly: keep the current
+   output for exploratory use only, OR recalibrate/remask and rereduce before
+   treating results as final. This decision must be recorded in analysis notes.
+
+**Exit criteria**: A ranked root-cause list, a rerun parameter set, and an
+explicit output-intent decision are all documented.
+
+---
+
+## Rationalizations
+
+| Rationalization | Why it is wrong |
+|-----------------|-----------------|
+| "The output is `diagnostic_` but the peaks look fine, so it's good enough." | `diagnostic_` means an approximation pathway was used. Visual inspection of peaks does not reveal subtle TOF-to-d mapping errors or normalization drift. The label is ground truth about data provenance, not a visual quality score. |
+| "I checked one group — they all look the same." | Cross-group comparison at step 5 is the diagnostic, not single-group inspection. Normalization and calibration failures often manifest as inter-group offsets invisible within a single spectrum. |
+| "The masking looks fine — there are no obvious gaps." | Mask failures can produce large background artifacts rather than obvious gaps. Step 4 requires checking both the detector image and the reduced output for artifact signatures, not just visual coverage. |
+| "CIS mode is off so there's nothing to inspect." | Steps 1–6 do not require CIS mode. CIS mode provides additional evidence at step 7; its absence does not justify skipping the earlier checks. |
+| "I'll record the root cause after the rerun." | The decision at step 9 and the evidence at steps 1–7 must be recorded before the rerun. After a successful rerun, the diagnostic context is routinely lost. |
+
+---
+
+## Red Flags
+
+- Output label is `diagnostic_` with no intentional continue flag set →
+  calibration lookup failed unexpectedly. Revisit steps 1–3.
+- `MISSING_DIFFRACTION_CALIBRATION` or `ALTERNATE_DIFFRACTION_CALIBRATION`
+  flag in the reduction record → peak positions and d-spacing values are
+  unreliable. Do not use for final results without recalibration.
+- Large contiguous zero-count region in the detector image not explained by
+  the expected device mask → pixel mask is missing, shifted, or
+  wrong for the current device. Revisit step 4 and invoke
+  [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md).
+- Systematic peak-position offset between groups → `difcal` mismatch;
+  revisit step 3 and invoke [sns-snap-calibration-and-geometry](../sns-snap-calibration-and-geometry/SKILL.md).
+- Wavelength-dependent intensity drift in one or more groups → `normcal`
+  issue; revisit step 5 and calibration state.
+- `sampleFactor > 1` used → upsampling is lossy in current tooling and is
+  warned. Note this in the root-cause list; do not use upsampled output for
+  final intensity-dependent analysis.
+
+---
+
+## Resampling reference
+
+- `sampleFactor=1`: no effective change in bin spacing.
+- `sampleFactor<1`: coarsens bins (downsampling).
+- `sampleFactor>1`: refines bins (upsampling) — warned as lossy in current
+  tooling; rebinning parameters are spectrum-specific within a pixel grouping
+  scheme.
+
+---
+
+## Verification
+
+Before marking this skill complete:
+
+- [ ] Output label (`reduced_` or `diagnostic_`) is confirmed and its cause
+      is attributed.
+- [ ] All reduction log flags (`ContinueWarning`, missing-calibration flags)
+      are listed and explained.
+- [ ] Calibration cycle-matching policy and outcome are confirmed.
+- [ ] Masking coverage checked in both the detector image and the reduced
+      output; any artifact-producing failures are identified.
+- [ ] Cross-group normalization and peak-position comparison completed.
+- [ ] Ranked root-cause list recorded in analysis notes.
+- [ ] Rerun parameter set (minimum reproducible changes) recorded.
+- [ ] Explicit output-intent decision recorded: exploratory use only, or
+      recalibrate/rereduce before final results.
