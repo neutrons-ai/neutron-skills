@@ -7,22 +7,33 @@ description: >
   need to identify and handle dataset-specific challenges: pressure-driven
   structural variation, multiple phases, microstructural effects, strain, low
   signal statistics, background, and cell-component Bragg scattering.
-version: 1
+version: 2
 review:
-  status: human-reviewed
-  reviewer: Malcolm Guthrie
-  reviewed_on: 2026-05-01
-  basis: [instrument-science-review]
+  status: pending
+  reviewer: null
+  reviewed_on: null
+  basis: []
   notes: >
-    Initial draft authored from instrument-scientist domain notes
-    (Malcolm Guthrie, 2026-04-30). Source notes preserved in
-    assets/high-pressure-data-notes.md. Covers analysis-stage challenges for
-    high-pressure powder diffraction on SNAP: pressure-driven structural
-    variation and indexing implications, multiple phases, microstructural
-    effects, strain, sample signal and statistics, background handling, and
-    cell-component artifacts. Reviewed and approved by Malcolm Guthrie
-    2026-05-01; variable-structure section added post-initial-draft.
-  approved_commit: review/sns-snap-high-pressure-data-interpretation-v1
+    v2: restructured to required skill anatomy (Overview / When to Use /
+    Process / Rationalizations / Red Flags / Verification). Prior reviewed
+    technical content preserved and reorganized. Awaiting instrument-scientist
+    sign-off.
+  approved_commit: null
+  prior_review:
+    status: human-reviewed
+    reviewer: Malcolm Guthrie
+    reviewed_on: 2026-05-01
+    basis: [instrument-science-review]
+    notes: >
+      Initial draft authored from instrument-scientist domain notes
+      (Malcolm Guthrie, 2026-04-30). Source notes preserved in
+      assets/high-pressure-data-notes.md. Covers analysis-stage challenges for
+      high-pressure powder diffraction on SNAP: pressure-driven structural
+      variation and indexing implications, multiple phases, microstructural
+      effects, strain, sample signal and statistics, background handling, and
+      cell-component artifacts. Reviewed and approved by Malcolm Guthrie
+      2026-05-01; variable-structure section added post-initial-draft.
+    approved_commit: review/sns-snap-high-pressure-data-interpretation-v1
 metadata:
   facility: SNS
   beamline: BL3
@@ -49,314 +60,273 @@ metadata:
 
 # SNAP High-Pressure Data Interpretation
 
-Use this skill at the **analysis stage** — after reduction is complete and you
-have focused, merged powder patterns — when the data come from a high-pressure
-device. High-pressure datasets have a characteristic set of challenges that all
-require specific treatment in the Rietveld model or experimental follow-up.
+even disrupted under pressure and any rigid body constraints based on ambient models may need to be relaxed.
+different scattering angles relative to the load axis. SNAP's multi-angle
+detector coverage makes it possible to **resolve this angular dependence** by
+development. Use available broadening models as approximations, and note their
+diamond Bragg reflections produces a complex, highly structured background that
+## Overview
 
-For the **reduction-stage** counterpart (masking, notching, attenuation
-correction, SEEMeta handling) see
+Use this skill at the **analysis stage** after reduction is complete and you
+have focused, merged powder patterns from a high-pressure device. These data
+have a recurring set of interpretation problems that require explicit choices in
+the Rietveld model or a deliberate decision to stop short of full structural
+refinement.
+
+For the **reduction-stage** counterpart, including masking, wavelength notching,
+attenuation correction, and `SEEMeta` handling, see
 [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md).
 
-Source domain notes: `assets/high-pressure-data-notes.md`.
-
----
-
-## Evidence tracking
+### Evidence
 
 | Item | Detail |
 |---|---|
-| Domain notes | Malcolm Guthrie, instrument-scientist notes, 2026-04-30 (`assets/high-pressure-data-notes.md`) |
-| Reduction cross-reference | `sns-snap-sample-environment-reduction-special-cases` (human-reviewed 2026-04-30) |
-| Rietveld framework reference | `rietveld-checklist` |
+| Domain notes | Malcolm Guthrie instrument-scientist notes, 2026-04-30, preserved in `assets/high-pressure-data-notes.md` |
+| Reduction cross-reference | `sns-snap-sample-environment-reduction-special-cases` |
+| Rietveld framework reference | [rietveld-checklist](../rietveld-checklist/SKILL.md) |
 
 ---
 
-## Context to collect before use
+## When to Use
 
-Before applying guidance from this skill, establish:
+Use this skill when:
 
-- **Device type** — PE cell, DAC, or cylinder cell and specifics of their components. Each has distinct artifact
-  signatures (see
-  [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md)
-  for device-specific reduction artifacts).
-- **Starting structural model quality** — whether the candidate structure is
-  ambient-pressure only, and whether pre-indexing has been performed on the
-  measured high-pressure lattice.
-- **Pressure medium** — hydrostatic (noble gas, deuterated alcohol mixture,
-  glycerin) or non-hydrostatic (solid).
-- **Pixel grouping scheme** — which detector banks / groupings were used; this
-  governs available angular resolution for strain analysis. Also consider the data artifacts may be localised in specific pixel groups
-- **Notching applied?** — whether wavelength-notching was applied during
-  reduction; this affects background tractability (see §Background).
-- **Known cell-component phases** — chemical identity of anvils, gaskets, and
-  any pressure calibrant phases present (this is typically constrained by device type).
-- **Sample history** — did the sample undergo annealing? Were crystallization
-  seeds used? These affect expected microstructure.
+- You are interpreting reduced SNAP high-pressure powder-diffraction data from
+  a PE cell, DAC, or cylinder cell.
+- The refinement must distinguish sample signal from pressure-medium,
+  calibrant, gasket, anvil, or container contributions.
+- Pressure, strain, texture, low statistics, or structured background are
+  likely limiting factors.
 
----
+Do **not** use this skill when:
 
-## Variable structure
+- You still need to decide masking, notching, attenuation correction, or
+  sample-environment metadata during reduction.
+- You only need generic release order and fit-quality guidance without a
+  high-pressure context; use
+  [rietveld-checklist](../rietveld-checklist/SKILL.md).
 
-A first-order consequence of high pressure is that it can modify structure
-continuously (bond lengths and angles) or discontinuously (phase transitions).
-Because most structural databases are dominated by ambient-pressure entries,
-those models should be treated as **starting guesses**, not ground truth, for
-in situ high-pressure analysis.
+### Required context before starting
 
-### Implications for refinement startup
-
-For Rietveld workflows, this usually requires **pre-indexing the measured
-lattice** before full refinement so starting unit-cell parameters are close
-enough to converge robustly. This is particularly important for lower-symmetry
-or layered materials where compression can be strongly anisotropic and peak
-shifts are non-uniform across reflections. It is also possible that well defined 
-structural motifs (such as octahedral or molecular units) can be highly distored or
-even disrupted under pressure and any rigid body constraints based on ambient models may need to be relaxed.
-
-Practical guidance:
-
-- Re-index the measured pattern at each pressure regime where peak topology
-  changes.
-- Do not assume ambient symmetry/metric constraints remain valid at pressure.
-- Delay aggressive atomic-parameter refinement until lattice assignment is
-  stable.
-
-### Implications for background extraction
-
-Any background-extraction method that depends on identifying Bragg-peak regions
-must use peak positions appropriate to the **current pressure**, not ambient
-positions. Otherwise, peak/background deconvolution is biased and can corrupt
-both background modelling and downstream refinements.
+- Device type and component details: PE, DAC, or cylinder cell.
+- Starting structural model quality: ambient-only starting model or a
+  pressure-appropriate indexed lattice.
+- Pressure medium: hydrostatic or non-hydrostatic.
+- Pixel grouping scheme used during reduction; this controls available angular
+  resolution for strain analysis and artifact localization.
+- Whether wavelength notching was applied during reduction.
+- Known cell-component phases and pressure calibrant phases.
+- Sample history such as annealing or use of crystallization seeds.
 
 ---
 
-## Multiple phases
+## Process
 
-High-pressure experiments routinely have several distinct crystallographic
-phases contributing simultaneously to the measured pattern:
+1. **Establish the interpretation envelope first** — Record the device type,
+   pressure medium, pixel grouping, notching status, and known cell-component
+   phases before fitting. High-pressure interpretation is constrained by those
+   experimental facts.
 
-- The **sample** itself (which may exhibit one or more pressure-induced phases
-  or decomposition products)
-- **Pressure medium** (if crystalline at the measurement pressure)
-- **Pressure calibrant** (e.g. gold, ruby — though ruby fluorescence is used
-  off-line; NaCl or lead for in-situ TOF)
-- **Cell-component phases** — anvil, gasket, and body materials (see
-  §Cell-component Bragg scattering)
+   **[CHECKPOINT]**: Device class, sample environment, grouping scheme, and
+   reduction choices are known and documented.
 
-All illuminated phases are superimposed in the TOF pattern. The only reliable
-analysis approach is a **multi-phase Rietveld model** that accounts for every
-contributing crystalline phase. Unidentified peaks must be investigated — they
-are likely from cell components or a new sample phase — before committing to a
-structural interpretation.
+2. **Treat ambient-pressure structures as starting guesses only** — High
+   pressure can change a structure continuously or discontinuously. Do not trust
+   ambient database entries as final truth under load.
 
-**Experimental mitigations** (to reduce the number of phases): high-precision alignment; careful
-collimation to restrict the illuminated volume; choice of non-diffracting or
-weakly diffracting pressure media at the measurement conditions.
+   Required actions:
 
----
+   - Pre-index the measured high-pressure lattice before full refinement when
+     peak shifts are significant.
+   - Re-index at each pressure regime where peak topology changes.
+   - Do not assume ambient symmetry or metric constraints remain valid.
+   - Delay aggressive atomic-parameter refinement until lattice assignment is
+     stable.
+   - Relax rigid-body assumptions if pressure may distort or disrupt the motif.
 
-## Microstructural effects and preferred orientation
+   Background consequence:
 
-High-pressure phase transitions occur with little experimental control over
-the resultant microstructure. Two effects can fundamentally limit the
-reliability of intensities extracted from the Rietveld fit:
+   - Any background-extraction method based on Bragg-peak locations must use the
+     **current-pressure** peak positions, not ambient positions.
 
-### Preferred orientation (texture)
+3. **Build a complete multi-phase model before interpreting structure** — High
+   pressure commonly adds multiple simultaneous phases to the pattern.
 
-Rietveld analysis assumes unbiased sampling of all crystallite orientations
-(ideal powder averaging). Preferred orientation violates this assumption and
-biases extracted intensities, which propagates into structural parameters.
+   Typical contributors:
 
-**TOF-specific advantage**: SNAP's time-of-flight geometry enables the direct
-resolution of orientational domains because the same $d$-spacing is measured
-simultaneously at multiple detector positions covering a range of scattering
-angles. This allows texture to be modelled explicitly using spherical harmonics
-or other orientation distribution functions within the Rietveld model rather
-than being treated as a single scalar correction.
+   - Sample phase or pressure-induced daughter phases.
+   - Pressure medium if it crystallizes.
+   - Pressure calibrant.
+   - Cell-component phases from anvils, gaskets, or container bodies.
 
-**Modelling guidance**: enable preferred-orientation corrections in the
-Rietveld model from an early stage. If strong texture is present, multi-bank
-data (exploiting SNAP's angular coverage) substantially constrain the
-orientation distribution.
+   Required actions:
 
-**Experimental mitigations**: slow or oscillating pressure/temperature ramps
-during phase transformation; crystallization seeds (e.g. silica wool,
-mesoporous materials). Effectiveness is sample- and phase-dependent.
+   - Account for every visible peak before claiming a structural conclusion.
+   - Treat unidentified peaks as unresolved physics or cell components, not as
+     ignorable clutter.
+   - Use multi-phase Rietveld models when more than one crystalline contributor
+     is illuminated.
 
-### Irregular distribution of crystallite size
+4. **Decide whether intensities are trustworthy enough for structural claims**
+   — Texture, large crystallites, and strain can invalidate intensity-based
+   refinement even when peak positions remain useful.
 
-If individual crystallites are large relative to the beam footprint, their
-single-crystal Bragg peaks appear as intense spikes that bias intensities in
-the bins they fall in. **Pixel or bin masking** applied during reduction (before
-merging pixels into a powder average) is the primary mitigation. See
-[sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md)
-for the masking workflow.
+   Preferred orientation guidance:
 
-### Limiting over-analysis
+   - Enable preferred-orientation corrections early if texture is suspected.
+   - Use SNAP's multi-angle TOF geometry to constrain orientation effects when
+     possible.
+   - Multi-bank data generally constrain texture better than single merged views.
 
-When intensities are known to be unreliable (strong texture unresolvable with
-the available angular coverage, large-crystallite contamination not fully
-masked), the information content of the pattern is reduced to what can be
-derived from **peak positions and profiles** rather than intensities.
-Analysis should be scoped accordingly:
+   Large-crystallite guidance:
 
-- Unit-cell parameters and equation of state parameters remain accessible.
-- Atomic coordinates, occupancies, and thermal parameters require reliable
-  intensities — do not refine these if intensity reliability is in doubt.
-- Document the basis for any intensity-dependent conclusions explicitly.
+   - If large crystallites created intense spikes that were not fully masked
+     during reduction, treat refined intensities as suspect.
 
----
+   Scope-limiting rule:
 
-## Strain
+   - If intensity reliability is doubtful, limit conclusions to peak-position
+     and profile information such as unit-cell parameters or equation-of-state
+     results. Do not refine occupancies, thermal parameters, or subtle atomic
+     coordinates on compromised intensities.
 
-Strain gradients are common in high-pressure samples because the neutron beam
-samples an extended volume and averages over a range of local stress
-conditions. The primary observable effect is **peak broadening** — both
-Lorentzian (microstrain) and Gaussian (strain distribution) components can
-contribute.
+   **[CHECKPOINT]**: You have explicitly decided whether the analysis is
+   intensity-trustworthy or position/profile-only.
 
-### Experimental mitigations
+5. **Assess strain with the grouping scheme in mind** — High-pressure strain
+   gradients usually appear as peak broadening, and under uniaxial load they are
+   angle-dependent.
 
-| Approach | Effect | Tradeoff |
-|---|---|---|
-| Hydrostatic pressure medium (noble gas, methanol/ethanol, glycerin) | Minimizes deviatoric stress; near-hydrostatic sample environment | Medium adds phases; noble-gas loading requires a cryogenic approach or high-pressure gas loader |
-| Annealing (≈50% of melting temperature) | Greatly reduces stress; sharpens peaks | Can induce recrystallisation, degrading intensity reliability |
+   Required actions:
 
-### TOF angular-resolution advantage for uniaxial strain
+   - Use isotropic or anisotropic microstrain models available in GSAS-II or
+     FullProf as the first approximation.
+   - Check whether the chosen pixel grouping preserves enough angular resolution
+     to separate strain effects across detector angles.
+   - Document when the software model is only an approximation to SNAP's full
+     TOF multi-angle strain information.
 
-Under uniaxial load (typical of DAC and PE geometries), strain is
-angle-dependent: the sample experiences systematically different $d$-spacing shifts at
-different scattering angles relative to the load axis. SNAP's multi-angle
-detector coverage makes it possible to **resolve this angular dependence** by
-fitting data from different pixel groups separately or jointly with a
-strain-model constraint.
+   Experimental interpretation notes:
 
-This requires a pixel grouping scheme that provides adequate angular
-resolution. Higher angular resolution groups fewer pixels, reducing counting
-statistics per bin. The appropriate tradeoff depends on the strain magnitude
-and peak overlap.
+   | Approach | Effect | Tradeoff |
+   |---|---|---|
+   | Hydrostatic medium | Reduces deviatoric stress | Adds additional phases or loading complexity |
+   | Annealing near 50% melting temperature | Sharpens peaks and reduces stress | Can recrystallize and worsen intensity reliability |
 
-### Rietveld package support
+6. **Check whether the sample signal is statistically adequate for the intended
+   claim** — High pressure reduces sample volume and often makes the cell a
+   dominant scatterer.
 
-Most Rietveld packages (GSAS-II, FullProf) support isotropic and anisotropic
-microstrain broadening models. However, **TOF-specific strain modelling** —
-particularly the simultaneous multi-angle strain analysis enabled by SNAP's
-geometry — is not fully supported in current packages. Full exploitation of
-SNAP's TOF information content for strain analysis is an active area of
-development. Use available broadening models as approximations, and note their
-limitations in any analysis documentation.
+   Required actions:
 
----
+   - Inspect uncertainties on key peaks and refined parameters.
+   - Compare peak-to-background ratio against the needs of the intended analysis.
+   - For DAC data, assume long counting times may be necessary before attempting
+     intensity-dependent conclusions.
 
-## Sample signal and statistics
+   Attenuation consequence:
 
-High-pressure devices constrain the sample volume to maximise pressure (force
-per unit area). The resulting sample mass is small, and the net Bragg
-scattering signal is proportionally small.
+   - Cell materials reduce flux and introduce wavelength-dependent attenuation.
+   - These corrections are best handled during reduction, but missing or poor
+     attenuation treatment can still be diagnosed at analysis stage through
+     systematic trends versus Q or d-spacing and unphysical displacement
+     parameters.
 
-### Counting time
+7. **Model background as a physical problem, not a cosmetic one** — High-
+   pressure background is often large, structured, and pressure-dependent.
 
-Adequate counting statistics typically require long exposure. DAC samples
-(the smallest sample volumes) may require many hours of counting time. When
-assessing whether statistics are sufficient:
+   General guidance:
 
-- Check the uncertainty on key peaks explicitly.
-- Compare peak-to-background ratio against the threshold needed for the
-  intended analysis (position-only analysis has a lower threshold than
-  intensity-dependent structural refinement).
-- Inspect uncertainties on refined parameters are sufficient to achieve scientific goals.
+   | Property | Implication |
+   |---|---|
+   | Large relative to sample signal | Background quality directly controls interpretation reliability |
+   | Structured | A low-order polynomial may be inadequate |
+   | Pressure-dependent | Empty-cell subtraction may fail at pressure |
 
-### Attenuation by cell materials
+   Required actions:
 
-The beam passes through cell-body and anvil materials both inbound and
-outbound. This:
+   - Use polynomial background only when the residual structure justifies it.
+   - Switch to fixed points or more flexible background treatment when the
+     pattern is structured.
+   - Make sure background-only anchor points are not actually overlapped sample
+     peaks.
 
-1. **Reduces flux** reaching the sample and **reduces detected scattered
-   intensity**, degrading statistics.
-2. **Introduces a wavelength-dependent correction** — attenuation cross
-   sections are wavelength-dependent and can be highly structured for materials with pronounced Bragg edges, so the effective transmission function
-   is not flat across the TOF pattern.
+   DAC-specific rule:
 
-The wavelength-dependent correction are best dealt with during **reduction** see [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md). However, 
-simple absorption corrections can also be applied at the analysis stage. Missing or erroneous attenuation corrections can be diagnosed by checking for systematic variations in refined parameters as a function of $Q$ or $d$-spacing, which share the same exponential dependence on wavelength as absorption. Unphysical atomic displacement parameters are a classic indicator of uncorrected absorption effects.
-absolute or relative intensities by inspecting systematic variations in intensity as a function of Q/d-spacing. A classic indicator is unphysical atomic displacement parameters in a refinement, as they share the same exponential dependence on Q as absorption. 
+   - If notching was not applied and DAC background is intractable, flag the
+     data for re-reduction with notching before forcing a poor analysis-stage
+     model.
+   - Residual diamond scattering stronger than the sample is a sign the data are
+     not ready for trustworthy refinement.
 
+8. **Treat cell-component Bragg scattering as real phases** — Peaks from anvils,
+   gaskets, and cell bodies are pressure-dependent and cannot be cleanly
+   subtracted as a fixed background.
 
----
+   Required actions:
 
-## Background
+   - Include them as additional phases when they are visible.
+   - Use reduction-stage knowledge of the cell hardware to propose candidate
+     phases.
+   - Do not assume ambient-pressure empty-cell subtraction can remove them.
 
-The pressure cell invariably contributes background to the measured signal.
-This background has several characteristics that often make standard empty-cell
-subtraction insufficient:
-
-| Property | Implication |
-|---|---|
-| Large relative to sample signal | Accurate modelling is critical |
-| Structured (non-polynomial) | Standard background polynomial may be inadequate |
-| **Pressure-dependent** | Empty-cell measurement at ambient pressure often cannot be subtracted at high pressure — the cell deforms, beam path changes, and cell-component phases shift |
-
-### Analysis-stage background modelling
-
-Rietveld packages provide several background models (Chebyshev polynomial,
-linear interpolation, fixed points). Where the background is smooth, a
-polynomial of adequate degree is usually sufficient. Where it is structured
-(e.g. strong multiple scattering at specific wavelengths or oscillatory features in liquidpressure media),
-use fixed background points with manual adjustment or a higher-complexity
-model. Carefully assess where data points are known to be background only versus overlapped sample peaks.
-
-### DAC background: diamond fluorescence and multiple scattering
-
-DAC data present the most challenging background case. Multiple scattering of
-diamond Bragg reflections produces a complex, highly structured background that
-is effectively intractable by standard polynomial fitting. Two approaches help:
-
-1. **Wavelength notching** applied during reduction removes the diamond Bragg
-   wavelengths entirely from the TOF pattern. This not only eliminates the
-   peaks themselves but dramatically smooths the residual background and makes
-   it nearly pressure-independent, enabling effective subtraction or polynomial
-   modelling. (See
-   [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md)
-   for the notching workflow.)
-2. **Amorphisation / melting technique**: the sample itself is amorphised or melted so its point-by-point signal is minimized. The resulting pattern provides a usable approximation of the true
-   total background, which can then be subtracted before the main analysis.
-
-If notching was not applied during reduction and the background is intractable, 
-consider flagging the data for re-reduction with notching before proceeding. Failure of notching/masking is often immediately obvious as any residual scattering from diamond is often far stronger than the sample signal.
-
-### Cell-component Bragg scattering
-
-Bragg peaks from anvil, gasket, and cell-body materials are commonly visible in
-high-pressure patterns. Because these components are physically close to the
-sample and under significant load, their $d$-spacings are also
-**pressure-dependent** — making them unsubtractable even in principle. They
-must be **included as additional phases in the Rietveld model**.
-
-Experimental minimization procedures (collimation, beam footprint tuning)
-reduce but do not eliminate this contribution. See
-[sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md)
-for device-specific descriptions of which components contribute and at which
-$d$-spacings.
+**Exit criteria**: The high-pressure lattice has been indexed or re-indexed as
+needed, all visible peaks are assigned or explicitly flagged, intensity
+reliability has been assessed, strain and background models are justified, and
+the final interpretation scope matches the actual information content of the
+data.
 
 ---
 
-## Quality gates
+## Rationalizations
 
-Before accepting a high-pressure Rietveld refinement as complete:
+| Excuse | Rebuttal |
+|--------|----------|
+| "The ambient structure is close enough; refinement will sort it out." | Under pressure, anisotropic compression and phase changes can shift peak topology enough that ambient starting models destabilize the refinement. Pre-index first when peak shifts are significant. |
+| "Those extra peaks are probably noise or background." | In high-pressure data, unidentified peaks are often real phases from the sample, calibrant, pressure medium, or cell components. Ignoring them forces the wrong structural interpretation. |
+| "The fit looks okay, so I can trust the intensities." | A visually acceptable fit can still hide texture, large-crystallite contamination, or strain effects that invalidate intensity-based conclusions. Decide explicitly whether intensities are trustworthy. |
+| "I can model DAC background with a higher-order polynomial." | Diamond multiple scattering often produces a structured background that is not meaningfully polynomial. If notching was not done and the background remains intractable, the correct action may be re-reduction, not polynomial escalation. |
+| "Empty-cell subtraction should remove the pressure-cell contribution." | Cell-component peaks and pressure-dependent container changes do not behave like a fixed background. At pressure, these contributions often need explicit phase treatment. |
 
-- [ ] All visible peaks accounted for in the model (sample phases + pressure
-      medium + calibrant + cell-component phases)
-- [ ] Measured high-pressure lattice pre-indexed; refinement not seeded from
-  ambient parameters alone when significant peak shifts are present
-- [ ] Background model as well as sample provides a good residual; no broad unmodelled features
-- [ ] Appropriate preferred-orientation correction enabled if texture is suspected
-- [ ] Strain broadening model applied and $R_{wp}$ not dominated by profile
-      mismatch
-- [ ] If intensities are unreliable, analysis limited to peak-position /
-      equation-of-state outputs only
-- [ ] If required, appropriate attenuation correction confirmed applied during reduction
-- [ ] Uncertainties on key parameters checked against counting statistics
+---
+
+## Red Flags
+
+- Refinement is seeded from ambient parameters despite clear pressure-driven peak
+  shifts.
+- Visible peaks remain unassigned after a nominally converged fit.
+- Strong texture is suspected but no preferred-orientation correction is active.
+- Large-crystallite spikes or masking artifacts from reduction are known, but
+  intensity-dependent parameters are still being interpreted.
+- Strain broadening dominates residuals, but the grouping scheme cannot support
+  the angular-resolution claim being made.
+- Unphysical atomic displacement parameters or systematic intensity trends versus
+  Q or d-spacing suggest missing attenuation correction.
+- DAC background remains highly structured after fitting attempts and no
+  re-reduction with notching is being considered.
+- Cell-component peaks are present but are being treated as generic background
+  instead of explicit phases.
+
+---
+
+## Verification
+
+- [ ] Device type, pressure medium, grouping scheme, and notching status are
+      documented before interpretation begins.
+- [ ] The measured high-pressure lattice is pre-indexed or re-indexed where peak
+      topology changes.
+- [ ] All visible peaks are accounted for by sample phases, medium, calibrant,
+      or cell-component phases, or are explicitly flagged as unresolved.
+- [ ] Background treatment is justified and no broad unmodelled features remain.
+- [ ] Preferred-orientation correction is enabled when texture is suspected.
+- [ ] Strain broadening treatment is applied and its software limitations are
+      documented.
+- [ ] If intensity reliability is doubtful, conclusions are limited to
+      peak-position/profile outputs only.
+- [ ] Required attenuation correction is confirmed from reduction or diagnosed as
+      a remaining limitation.
+- [ ] Uncertainties on key refined parameters are checked against counting
+      statistics and scientific goals.
 
 For general Rietveld parameter release order and goodness-of-fit metrics see
 [rietveld-checklist](../rietveld-checklist/SKILL.md).

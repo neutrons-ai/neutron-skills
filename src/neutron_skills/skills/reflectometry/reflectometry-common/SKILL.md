@@ -5,12 +5,47 @@ description: >
   Provides common material SLD values, chi-squared interpretation guidelines, model
   complexity rules (BIC), roughness constraints, refl1d API conventions, and general
   constraints that apply to ALL reflectometry analyses.
+version: 2
+review:
+  status: pending
+  reviewer: null
+  reviewed_on: null
+  basis: []
+  notes: >
+    v2: restructured to required skill anatomy (Overview / When to Use /
+    Process / Rationalizations / Red Flags / Verification). Existing
+    reflectometry guidance retained and reorganized.
+  approved_commit: null
 metadata:
   author: Mat Doucet
   version: "1.0"
 ---
 
-## Data Structure
+# Reflectometry Common
+
+## Overview
+
+This skill provides baseline constraints and interpretation rules for neutron
+reflectometry model construction and fitting in refl1d. It is intended to
+stabilize fits, avoid unphysical parameter drift, and prevent unnecessary model
+complexity.
+
+## When to Use
+
+Use this skill when:
+
+- Building or reviewing a refl1d model and parameter bounds.
+- Interpreting χ² and deciding whether model complexity changes are justified.
+- Troubleshooting multi-segment co-refinement behavior.
+
+Do not use this skill when:
+
+- You need instrument-control or data-acquisition scripting.
+- You need a full model-file template; use `refl1d-model-script`.
+
+## Process
+
+### Data Structure
 The Liquids Reflectometer (REF_L) and Magnetism Reflectometer (REF_M) at the Spallation Neutron Source (SNS) produces data files with a specific structure. Each file contains multiple segments corresponding to different measurement configurations, such as varying the angle of incidence or the neutron wavelength band. The segments are typically labeled with metadata that indicates the measurement conditions.
 
 There are two common approaches to fitting data:
@@ -42,7 +77,7 @@ def create_probe(data_file, theta):
     return probe 
 ```
 
-## Common SLD Values (×10⁻⁶ Å⁻²)
+### Common SLD Values (×10⁻⁶ Å⁻²)
 
 | Material | SLD |
 |----------|-----|
@@ -53,7 +88,7 @@ def create_probe(data_file, theta):
 | Copper | 6.55 |
 | Titanium | -1.95 |
 
-## SLD Range Guidelines
+### SLD Range Guidelines
 
 - Set `sld_min` and `sld_max` to at least ±2.0 around the nominal SLD value for each layer.
   For example, for copper (SLD 6.55): sld_min = 4.5, sld_max = 8.5.
@@ -64,7 +99,7 @@ def create_probe(data_file, theta):
 - For adhesion layers like titanium that can intermix with adjacent layers, use ranges
   of ±3.0 or wider (e.g., -5.0 to 1.0 for Ti).
 
-## Chi-Squared (χ²) Interpretation
+### Chi-Squared (χ²) Interpretation
 
 - χ² ≈ 1: Ideal fit (model matches data within error bars)
 - χ² < 0.5: Possible overfitting or overestimated errors
@@ -73,7 +108,7 @@ def create_probe(data_file, theta):
 - χ² 5–10: Marginal fit, model may be missing features
 - χ² > 10: Poor fit, significant model problems
 
-## Model Complexity (BIC)
+### Model Complexity (BIC)
 
 - BIC = n·ln(χ²) + k·ln(n), where n = number of data points, k = free parameters.
 - Lower BIC is better.
@@ -85,7 +120,7 @@ def create_probe(data_file, theta):
 - If a previous attempt to add a layer was reverted due to BIC regression,
   do NOT re-add the same layer — try a different approach.
 
-## Roughness Constraints
+### Roughness Constraints
 
 - Roughness should be ≥ 5 Å (values below are often physically unrealistic) unless specified.
 - Roughness should be less than half the thickness of either adjacent layer
@@ -93,7 +128,7 @@ def create_probe(data_file, theta):
   In this case the "layer" interpretation becomes more of a gradient and the physical meaning of "thickness" and "roughness" parameters breaks down, but it may still be useful to capture the overall SLD profile shape.
 - Typical roughness range: 5–30 Å.
 
-## Refl1d API Rules
+### Refl1d API Rules
 
 CRITICAL: `SLD(...)` objects do NOT have `.material`, `.thickness`, or `.interface`
 attributes. Those attributes only exist on `Slab` objects inside the sample stack.
@@ -109,7 +144,7 @@ sample[1].interface.range(0.0, 5.0)       # first layer roughness
 NEVER write `copper.material.rho.range(...)` — this crashes with
 "'SLD' object has no attribute 'material'".
 
-## General Constraints
+### General Constraints
 
 - NEVER suggest changing the fitting engine/method. The fitting method is chosen
   by the workflow and is not a model issue.
@@ -119,7 +154,7 @@ NEVER write `copper.material.rho.range(...)` — this crashes with
   parameters that cannot be modified.
 - Unless specifically requested by the user, never allow the substrate SLD to vary.
 
-## Native SiO₂ on Silicon
+### Native SiO₂ on Silicon
 
 By default, avoid adding an SiO₂ layer on the silicon substrate. Native SiO₂ is
 typically only 10–30 Å and in reflectometry it adds 3 parameters that can absorb
@@ -128,7 +163,7 @@ consider removing it or fixing its thickness to < 30 Å to free up fitting capac
 for unknown layers. **However**, if the user explicitly requests an SiO₂ layer,
 you MUST add it.
 
-## Refinement Strategy — General
+### Refinement Strategy — General
 
 When χ² is above the acceptance threshold, follow this priority order:
 
@@ -150,7 +185,7 @@ When χ² is above the acceptance threshold, follow this priority order:
 7. **Never make multiple structural changes at once.** Add or remove one layer at
    a time so the effect can be evaluated.
 
-## Refinement Strategy — Multi-Segment Co-refinement
+### Refinement Strategy — Multi-Segment Co-refinement
 
 When fitting multiple segments/files together (multi-segment co-refinement with
 angle-based probes), two additional probe-level parameters become available:
@@ -210,3 +245,27 @@ When per-segment χ² values are uneven (one segment much worse than others):
 3. **Third:** Enable `theta_offset` — only if overlap regions show misalignment.
 4. **Last:** Consider structural changes — only if broadening and offset do not
    resolve the issue and residual fringes indicate a missing layer.
+
+## Rationalizations
+
+| Excuse | Rebuttal |
+|--------|----------|
+| "I can add layers until χ² looks small." | Extra layers increase free parameters and can worsen model validity; BIC and residual structure should justify complexity changes. |
+| "I will fit substrate SLD to absorb the mismatch." | Substrate SLD is typically known and floating it often masks real model deficiencies in film layers. |
+| "Segment imbalance means I should change layer chemistry first." | In multi-segment data, probe-level effects like `sample_broadening` or `theta_offset` often explain imbalance before structural changes do. |
+
+## Red Flags
+
+- Parameter values remain pinned at bounds without a physically justified range update.
+- Roughness exceeds physically interpretable limits relative to adjacent layer thickness.
+- Layer additions are proposed without BIC improvement or clear residual evidence.
+- Substrate SLD is floated without explicit user request.
+- Multi-segment fits show strong segment-to-segment χ² imbalance but probe-level controls are not evaluated.
+
+## Verification
+
+- [ ] SLD bounds are physically plausible and not unrealistically narrow.
+- [ ] χ² interpretation is paired with model-complexity checks (BIC or equivalent rationale).
+- [ ] Roughness and thickness constraints remain physically interpretable.
+- [ ] Refl1d API usage is applied to slab objects (`sample[i]...`), not raw `SLD` objects.
+- [ ] For multi-segment data, normalization, `sample_broadening`, and `theta_offset` are evaluated before structural model changes.

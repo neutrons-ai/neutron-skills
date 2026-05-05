@@ -5,14 +5,25 @@ description: >
   module inventory, and scripting conventions. Use when writing reduction
   scripts, integrating SNAPWrap with SNAPRed, working with sample-environment
   masking utilities, or building tooling that consumes the SNAPWrap API.
-version: 1
+version: 2
 review:
-  status: human-reviewed
-  reviewer: Malcolm Guthrie
-  reviewed_on: 2026-04-30
-  basis: [docs, code, instrument-science-review]
-  notes: Reviewed against current SNAPWrap behavior and naming conventions.
-  approved_commit: review/sns-snapwrap-developer-guide-v1
+  status: pending
+  reviewer: null
+  reviewed_on: null
+  basis: []
+  notes: >
+    v2: restructured to required skill anatomy (Overview / When to Use /
+    Process / Rationalizations / Red Flags / Verification). Prior reviewed
+    technical content preserved and reorganized. Awaiting instrument-scientist
+    sign-off.
+  approved_commit: null
+  prior_review:
+    status: human-reviewed
+    reviewer: Malcolm Guthrie
+    reviewed_on: 2026-04-30
+    basis: [docs, code, instrument-science-review]
+    notes: Reviewed against current SNAPWrap behavior and naming conventions.
+    approved_commit: review/sns-snapwrap-developer-guide-v1
 metadata:
   facility: SNS
   beamline: BL3
@@ -38,351 +49,298 @@ metadata:
 
 # SNAPWrap Developer Guide
 
-SNAPWrap is a Python wrapper application that provides the primary user-facing
-interface to the SNAPRed backend. Most SNAP users interact exclusively with
-SNAPWrap scripts; SNAPRed is the engine they never see directly.
+## Overview
 
-Repository: https://github.com/neutrons/SNAPWrap  
-Manual: https://powder.ornl.gov/bragg_diffraction/data_reduction/snap.html  
-SNAPRed backend guide: see `sns-snapred-developer-guide` skill.
+SNAPWrap is the primary user-facing Python layer for SNAP reduction. Most users
+write Mantid Workbench scripts that import SNAPWrap directly; SNAPRed is the
+backend engine SNAPWrap prepares requests for and calls.
 
----
+Repository: https://github.com/neutrons/SNAPWrap
+Manual: https://powder.ornl.gov/bragg_diffraction/data_reduction/snap.html
 
-## Evidence tracking
+### Evidence
 
-**Codebase exploration** (2026-04-30):
-- Source: `/Users/66j/Documents/ORNL/code/SNAPWrap`
-- Verified: module inventory, `reduce()` signature and data flow, `swissCheese`
-  hook implementation, SEEMeta assembly extraction, SNAPRed integration points.
+- Codebase exploration (2026-04-30) against `/Users/66j/Documents/ORNL/code/SNAPWrap`
+  verified module inventory, `reduce()` flow, `swissCheese` integration,
+  `SEEMeta` extraction, and SNAPRed request wiring.
 
----
+### Architecture sketch
 
-## Architecture overview
-
-SNAPWrap is a **library-first** wrapper. Users write Python scripts (typically run inside
-Mantid Workbench) that import and call SNAPWrap functions directly. There is no
-dedicated shell CLI — the `snapwrap` command launches Mantid Workbench with
-SNAPWrap installed.
-
-```
+```text
 User script (Mantid Workbench)
-    └── snapwrap.utils.reduce(runNumber, ...)
-            ├── snapwrap.snapStateMgr  — calibration status lookup
-            ├── snapwrap.maskUtils     — pixel and bin mask utilities
-            ├── snapwrap.SEEMeta       — sample environment assembly metadata
-            ├── snapwrap.io            — workspace I/O and export
-            └── SNAPRed InterfaceController.executeRequest(SNAPRequest)
+    -> snapwrap.utils.reduce(runNumber, ...)
+         -> snapwrap.snapStateMgr
+         -> snapwrap.maskUtils
+         -> snapwrap.SEEMeta
+         -> snapwrap.io
+         -> SNAPRed InterfaceController.executeRequest(SNAPRequest)
 ```
 
-SNAPWrap handles: configuration, calibration state lookup, mask preparation,
-hook assembly, and result export. SNAPRed handles: all actual computation.
-
-See `assets/snapwrap-module-inventory.md` in this skill directory for the
-complete module and function reference.
+SNAPWrap owns configuration, calibration lookup, mask preparation, hook
+assembly, and output handling. SNAPRed owns the actual reduction computation.
 
 ---
 
-## Primary entry point: `reduce()`
+## When to Use
 
-```python
-from snapwrap.utils import reduce
+Use this skill when:
 
-workspace_names = reduce(
-    runNumber,
-    # --- Mask inputs ---
-    binMaskList=[],           # list of bin-mask workspace names (Swiss cheese)
-    pixelMaskIndex='none',    # int or list of ints: user pixel mask indices
-    # --- Calibration policy ---
-    continueNoDifcal=False,   # proceed without difcal → diagnostic output
-    continueNoVan=False,      # proceed without normcal → artificial normalization
-    noNorm=False,             # skip normalization entirely
-    requireSameCycle=True,    # only use calibrations from the same SNS cycle
-    # --- Grouping and output ---
-    focusGroupAllowList=None, # list of group names to include (None = all), subset of default groups for the state
-    keepUnfocussed=False,     # retain unfocused workspace in Mantid
-    qsp=False,                # output in Q-space instead of d-spacing
-    linBin=0.01,              # linear bin size for Q-space output
-    save=True,                # write reduced data to disk
-    # --- Advanced ---
-    backgroundWSName=None,    # workspace name for background subtraction hook
-    attenuationWSName=None,   # workspace name for attenuation correction hook
-    cisMode=False,            # CIS mode: preserve diagnostic intermediate workspaces
-    emptyTrash=True,          # clean up temporary workspaces after reduction
-    YMLOverride='none',       # path to YAML override for reduction parameters
-    verbose=False,
-    reduceData=True,
-)
-# Returns: list[str] of reduced workspace names and the name of a pixel mask workspace if used, or [] on failure
-```
+- Writing or reviewing SNAP reduction scripts that call `snapwrap`.
+- Integrating sample-environment masking, `SEEMeta`, or calibration checks into
+  a user-facing workflow.
+- Debugging how SNAPWrap assembles a reduction request before it reaches
+  SNAPRed.
+- Building tooling that needs to parse SNAPWrap outputs or interact with its
+  module surface.
 
-### Internal data flow
+Do **not** use this skill when:
 
-```
-reduce(runNumber)
-  1. Load YAML defaults (globalParams / YMLOverride)
-  2. Check difcal and normcal status → snapStateMgr.checkCalibrationStatus()
-  3. Apply continue flags if calibrations missing
-  4. Build Hook objects (if requested):
-       PostPreprocessReductionRecipe → BackgroundAttenuationCorrection (if background/attenuation provided)
-       PostPreprocessReductionRecipe → cheeseMask (if binMaskList non-empty)
-  5. Assemble ReductionRequest (SNAPRed DAO)
-  6. Call InterfaceController.executeRequest(SNAPRequest(path="/reduction", ...))
-  7. Return list of workspace names
-```
-
----
-
-## Output workspace naming
-
-SNAPRed-generated workspace names follow the pattern:
-```
-{prefix}_{unit}_{pixelGroup}_{runNumber}_{timestamp}
-```
-
-In current SNAPWrap behavior, `cleanTheTree` is enabled by default. It hides
-the timestamped workspace names in the Mantid tree and exposes a copy of the
-latest workspace with the timestamp removed.
-
-Displayed default names therefore follow:
-```
-{prefix}_{unit}_{pixelGroup}_{runNumber}
-```
-
-| Prefix | Meaning |
-|--------|---------|
-| `reduced_` | Full calibration (difcal + normcal) present |
-| `diagnostic_` | Missing calibration; approximation used |
-
-Examples:
-```
-reduced_dsp_all_064413                 ← displayed (default clean tree)
-reduced_dsp_bank_064413                ← displayed (default clean tree)
-reduced_dsp_column_064413              ← displayed (default clean tree)
-reduced_dsp_all_064413_2025-11-17T154047     ← hidden timestamped source
-dsp_unfoc_lite_064413          ← unfocused; keepUnfocussed=True
-```
-
-Units: `dsp` = d-spacing (default), `qsp` = momentum transfer (qsp=True).  
-pixelGroups: `all`, `bank`, `column`, or user-defined group names.
-
-Use `snapwrap.io.redObject` to parse workspace names programmatically:
-```python
-from snapwrap.io import redObject
-obj = redObject('reduced_dsp_column_064413_2025-11-17T154047')
-print(obj.runNumber, obj.pixelGroup, obj.units, obj.timestamp)
-```
-
----
-
-## Bin masking: Swiss cheese / `binMaskList`
-
-Bin masking removes specific wavelength (or d-spacing, Q, TOF) ranges from the
-data before reduction. The primary use case is DAC experiments where diamond
-Bragg scattering contaminates specific wavelength bands (see
-`sns-snap-sample-environment-reduction-special-cases` skill for full context).
-
-**Mechanism**: bin masks are Mantid table workspaces. SNAPWrap assembles them
-into a `cheeseMask` hook (`HookCollection.cheeseMask`) that calls
-`MaskBinsFromTable` during the `PostPreprocessReductionRecipe` lifecycle point.
-
-**Naming contract (required)**: mask workspace names are parsed to infer units
-because the mask workspace itself does not carry a reliable unit attribute.
-Names must be of the form:
-`{prefix}_{units}`
-where `{prefix}` is arbitrary and `{units}` must exactly match Mantid
-unit naming (case-sensitive), for example `Wavelength` or `dSpacing`.
-If units in the name do not match Mantid conventions exactly, the mask may be
-applied in the wrong unit context or rejected by downstream logic.
-
-```python
-# Typical usage
-reduce(runNumber, binMaskList=['mask_dsp_DAC_forbidden_range', 'mask_wav_notch_diamond'])
-```
-
-Multiple masks in different units can be supplied simultaneously; the hook
-applies them in order. The workspace name encodes the unit
-(`*_dSpacing` → d-spacing, `*_Wavelength` → wavelength, etc.).
-
-**Creating Swiss cheese masks via UB matrix** (DAC notching):
-- Use `snapwrap.maskUtils` utilities and the `swissCheese` / Swiss cheese
-  class methods to compute notch positions from diamond UB matrices.
-- See `assets/snapwrap-module-inventory.md` for the full `maskUtils` API.
-
-**Extracting a mask from workspace history** (manual bin masking):
-```python
-# After manually masking bins in MantidWorkbench:
-mask_ws = swissCheese.ExtractFromWorkspaceHistory(ws_name)
-# Then pass the resulting workspace name to reduce()
-reduce(runNumber, binMaskList=[mask_ws])
-```
-
----
-
-## Calibration state lookup
-
-```python
-from snapwrap.snapStateMgr import checkCalibrationStatus
-
-status = checkCalibrationStatus(
-    runNumber,
-    stateID=None,          # auto-derived if None
-    isLite=True,
-    calType="difcal",      # or "normcal"
-    requireSameCycle=True,
-)
-# Key fields:
-status['runIsCalibrated']          # bool
-status['stateIsCalibrated']        # bool
-status['latestValidCalibrationDict']  # dict with calibration record
-status['statusDetail']             # human-readable reason if not calibrated
-```
-
-Calibration data lives at:
-```
-{calibration.powder.home}/{stateId}/lite|native/diffraction/v{version}/
-```
-The Calibration Index (`CalibrationIndex.json`) maps run numbers to
-calibration records via the `appliesTo` constraint. `requireSameCycle=True`
-(the default) additionally restricts matches to calibrations from the same
-SNS operating cycle.
-
----
-
-## SEEMeta: sample environment assembly metadata
-
-SEEMeta embeds sample-environment assembly information in run logs as a JSON
-dictionary. SNAPWrap provides tools to extract and use this data.
-
-SEEMeta is still being built out, but it is a core SNAP strategy for
-automating sample-environment (SEE) aware reduction operations.
-
-**Extraction:**
-```python
-from snapwrap.SEEMeta.utils import acquireMeta
-
-meta = acquireMeta(runNumber)
-# Returns dict with assembly type, components, material, orientation, nickname
-```
-
-**Lookup priority:**
-1. Override JSON file at `/IPTS-{ipts}/shared/SEE/SEE{runNumber}.json`
-2. Embedded in NeXus HDF5 at `entry/DASlogs/BL3:SE:SEEMeta:JSON/value`
-3. Not present → returns None (fall back to manual identification)
-
-**Assembly classes** (`snapwrap.SEEMeta.assembly`):
-
-| Class | Assembly type | SEEMeta `type` value |
-|-------|--------------|----------------------|
-| `DAC` | Diamond Anvil Cell | `assembly.dac` |
-| `PE` | Paris-Edinburgh / opposed anvil | `assembly.pe` |
-| `CylinderCell` | Gas or piston-cylinder cell | `assembly.cylinder` |
-| `Empty` | No sample environment | `assembly.empty` |
-
-Each Assembly contains a `components` list of typed `Component` objects
-(anvils, gaskets, cylinders) with material information from the SQLite
-materials database (`SEEMeta.material`).
-
-**Using assembly type in a script:**
-```python
-meta = acquireMeta(runNumber)
-if meta and meta.get('type') == 'assembly.dac':
-    # Apply DAC-specific masking
-    reduce(runNumber, binMaskList=dac_notch_masks)
-elif meta and meta.get('type') == 'assembly.pe':
-    # Apply PE pixel mask
-    reduce(runNumber, pixelMaskIndex=pe_mask_index)
-```
-
----
-
-## Hook system
-
-SNAPWrap injects custom processing into the SNAPRed reduction lifecycle via
-`Hook` objects attached to a `SNAPRequest`.
-
-```python
-from snapred.backend.dao.Hook import Hook
-
-hook = Hook(
-    func=my_callback_function,
-    kwarg1=value1,
-    kwarg2=value2,
-)
-hooks = {"PostPreprocessReductionRecipe": [hook]}
-```
-
-SNAPRed's `HookManager` executes all registered hooks at the named lifecycle
-point. All registered hooks must execute; failing to run any raises
-`ValueError`.
-
-Built-in SNAPWrap hooks (assembled automatically by `reduce()`):
-- `BackgroundAttenuationCorrection` — applies background subtraction and
-  attenuation correction when `backgroundWSName` / `attenuationWSName` provided.
-- `cheeseMask` — applies bin masking from `binMaskList` via `MaskBinsFromTable`.
-
----
-
-## Module quick reference
-
-Full details in `assets/snapwrap-module-inventory.md`.
-This table is intentionally non-exhaustive; use the asset for complete
-module coverage.
-
-| Import | Key exports | When to use |
-|--------|------------|-------------|
-| `snapwrap.utils` | `reduce()`, `globalParams()`, `propagateDifcal()` | All reduction scripts |
-| `snapwrap.io` | `redObject`, `exportData()` | Parse workspace names, export to GSAS-II/TOPAS |
-| `snapwrap.snapStateMgr` | `checkCalibrationStatus()`, `SNAPHome` | Calibration state queries |
-| `snapwrap.maskUtils` | Swiss cheese mask creation, pixel mask tools | DAC/PE masking workflows |
-| `snapwrap.SEEMeta.utils` | `acquireMeta()` | Extract assembly metadata from run logs |
-| `snapwrap.SEEMeta.assembly` | `DAC`, `PE`, `CylinderCell`, `Empty` | Assembly type objects |
-| `snapwrap.cycleDates` | `get_cycle_for_run()` | Cycle-aware calibration lookups |
-| `snapwrap.wrapConfig` | `WrapConfig` | Runtime config loading |
-
----
-
-## Configuration
-
-SNAPWrap uses a YAML-based configuration (`application.yml` + optional
-`override.yml`):
-
-```python
-from snapwrap.wrapConfig import WrapConfig
-WrapConfig.load()
-value = WrapConfig.get("instrument.calibration.home")
-```
-
-For local testing outside the SNS Analysis Cluster, set path overrides in
-`override.yml` and launch with:
-```bash
-env=/full/path/to/override.yml pixi run snapwrap
-```
-
-Default reduction parameters live in `defaultRedConfig.yml`; these are the
-values used when `YMLOverride='none'`.
-
----
-
-## Developer conventions
-
-- **Library-first**: SNAPWrap is imported in scripts; it is not a CLI tool.
-- **Mantid Workbench environment**: all scripts run inside a Mantid Python
-  environment; assume Mantid algorithms and workspace APIs are available.
-- **SNAPRed is the computation engine**: SNAPWrap only prepares inputs,
-  assembles hooks, and parses outputs. Never re-implement reduction logic in
-  SNAPWrap.
-- **Hook points are SNAPRed lifecycle names**: check the SNAPRed service layer
-  for valid hook registration points before adding new hooks.
-- **Calibration index is source of truth**: do not hardcode calibration file
-  paths; always resolve via `checkCalibrationStatus()` or the SNAPRed Data
+- You need the backend architecture inside SNAPRed rather than the wrapper
   layer.
+- You are looking for scientific reduction decisions rather than wrapper/API
+  structure.
 
 ---
 
-## Cross-references
+## Process
 
-- SNAPRed backend architecture: see `sns-snapred-developer-guide` skill.
-- Reduction workflow (user-facing): see `sns-snap-reduction-workflow-overview`.
-- Sample-environment masking details: see
-  `sns-snap-sample-environment-reduction-special-cases`.
-- Calibration state controls: see `sns-snap-calibration-and-geometry`.
+1. **Start from the library-first mental model** — SNAPWrap is imported from
+   scripts, usually inside Mantid Workbench. It is not the place to duplicate
+   reduction algorithms.
+
+   Developer conventions:
+
+   - Treat SNAPWrap as a library, not a standalone CLI.
+   - Assume Mantid algorithms and workspace APIs are available.
+   - Keep reduction computation in SNAPRed, not in SNAPWrap.
+   - Treat the calibration index as the source of truth.
+
+2. **Use `reduce()` as the primary integration surface** — Most user workflows
+   should pass through `snapwrap.utils.reduce()`.
+
+   ```python
+   from snapwrap.utils import reduce
+
+   workspace_names = reduce(
+       runNumber,
+       binMaskList=[],
+       pixelMaskIndex='none',
+       continueNoDifcal=False,
+       continueNoVan=False,
+       noNorm=False,
+       requireSameCycle=True,
+       focusGroupAllowList=None,
+       keepUnfocussed=False,
+       qsp=False,
+       linBin=0.01,
+       save=True,
+       backgroundWSName=None,
+       attenuationWSName=None,
+       cisMode=False,
+       emptyTrash=True,
+       YMLOverride='none',
+       verbose=False,
+       reduceData=True,
+   )
+   ```
+
+   Internal data flow:
+
+   ```text
+   reduce(runNumber)
+     1. Load YAML defaults (globalParams / YMLOverride)
+     2. Check difcal and normcal status via snapStateMgr
+     3. Apply continue-flag policy
+     4. Build requested hooks (background/attenuation, cheeseMask)
+     5. Assemble ReductionRequest
+     6. Call InterfaceController.executeRequest(SNAPRequest)
+     7. Return workspace names
+   ```
+
+   **[CHECKPOINT]**: If you are extending a user-facing reduction path, you can
+   point to the `reduce()` call and explain which arguments or hooks you are
+   changing.
+
+3. **Handle output names through SNAPWrap helpers instead of string guessing**
+   — SNAPRed workspace names are timestamped internally, while SNAPWrap usually
+   shows clean-tree aliases without timestamps.
+
+   Naming pattern:
+
+   ```text
+   {prefix}_{unit}_{pixelGroup}_{runNumber}_{timestamp}
+   ```
+
+   Default displayed pattern when `cleanTheTree` is enabled:
+
+   ```text
+   {prefix}_{unit}_{pixelGroup}_{runNumber}
+   ```
+
+   Use `snapwrap.io.redObject` to parse names programmatically.
+
+   | Prefix | Meaning |
+   |--------|---------|
+   | `reduced_` | Full calibration path succeeded |
+   | `diagnostic_` | Approximation path used because calibration was missing |
+
+4. **Use `binMaskList` and `swissCheese` through the naming contract** — Bin
+   masks are table workspaces applied by the `cheeseMask` hook during
+   `PostPreprocessReductionRecipe`.
+
+   Required rules:
+
+   - Mask workspace names must encode units correctly in the form
+     `{prefix}_{units}`.
+   - Unit suffixes must match Mantid unit naming exactly, such as `Wavelength`
+     or `dSpacing`.
+   - Multiple masks in different units can be supplied in one `binMaskList`.
+
+   Typical usage:
+
+   ```python
+   reduce(runNumber, binMaskList=['mask_dsp_DAC_forbidden_range', 'mask_wav_notch_diamond'])
+   ```
+
+   Common workflows:
+
+   - Build DAC notch masks from diamond UB matrices with `snapwrap.maskUtils`.
+   - Extract manual bin masks from workspace history with
+     `swissCheese.ExtractFromWorkspaceHistory(...)`.
+
+5. **Resolve calibration state through `snapStateMgr`, not hardcoded paths**
+   — Use `checkCalibrationStatus()` to determine whether the run and state have
+   valid `difcal` or `normcal` coverage.
+
+   ```python
+   from snapwrap.snapStateMgr import checkCalibrationStatus
+
+   status = checkCalibrationStatus(
+       runNumber,
+       stateID=None,
+       isLite=True,
+       calType="difcal",
+       requireSameCycle=True,
+   )
+   ```
+
+   Important outputs:
+
+   - `runIsCalibrated`
+   - `stateIsCalibrated`
+   - `latestValidCalibrationDict`
+   - `statusDetail`
+
+   The calibration index maps runs to calibration records through `appliesTo`,
+   and `requireSameCycle=True` further restricts matches to the same SNS cycle.
+
+6. **Use `SEEMeta` to branch sample-environment behavior early** — SNAPWrap can
+   extract assembly metadata from an override JSON file or embedded run logs.
+
+   Lookup priority:
+
+   1. `/IPTS-{ipts}/shared/SEE/SEE{runNumber}.json`
+   2. Embedded NeXus log `entry/DASlogs/BL3:SE:SEEMeta:JSON/value`
+   3. `None` if absent
+
+   Assembly classes include `DAC`, `PE`, `CylinderCell`, and `Empty`. Use the
+   extracted assembly type to decide whether to apply DAC notching, PE pixel
+   masks, or other environment-specific branches before calling `reduce()`.
+
+7. **Attach custom behavior through hooks only at valid SNAPRed lifecycle
+   points** — SNAPWrap passes `Hook` objects into `SNAPRequest`, and SNAPRed's
+   `HookManager` executes them.
+
+   Built-in hooks assembled by `reduce()`:
+
+   - `BackgroundAttenuationCorrection`
+   - `cheeseMask`
+
+   If you add new hooks, verify the lifecycle name against SNAPRed and remember
+   that all registered hooks must execute successfully.
+
+8. **Use the module surface intentionally** — Reach for the right module rather
+   than adding ad hoc helpers.
+
+   | Import | Key exports | When to use |
+   |--------|------------|-------------|
+   | `snapwrap.utils` | `reduce()`, `globalParams()`, `propagateDifcal()` | Main reduction scripts |
+   | `snapwrap.io` | `redObject`, `exportData()` | Workspace parsing and export |
+   | `snapwrap.snapStateMgr` | `checkCalibrationStatus()`, `SNAPHome` | Calibration queries |
+   | `snapwrap.maskUtils` | Swiss cheese utilities, pixel-mask tools | DAC/PE masking |
+   | `snapwrap.SEEMeta.utils` | `acquireMeta()` | Assembly metadata extraction |
+   | `snapwrap.SEEMeta.assembly` | `DAC`, `PE`, `CylinderCell`, `Empty` | Assembly objects |
+   | `snapwrap.cycleDates` | `get_cycle_for_run()` | Cycle-aware logic |
+   | `snapwrap.wrapConfig` | `WrapConfig` | Runtime config loading |
+
+9. **Load configuration through the YAML config layer** — SNAPWrap uses
+   `application.yml` with optional overrides.
+
+   ```python
+   from snapwrap.wrapConfig import WrapConfig
+   WrapConfig.load()
+   value = WrapConfig.get("instrument.calibration.home")
+   ```
+
+   For local testing outside the SNS Analysis Cluster, use an override file.
+   Default reduction parameters live in `defaultRedConfig.yml` and are used when
+   `YMLOverride='none'`.
+
+**Exit criteria**: You can explain how a SNAPWrap script flows through
+`reduce()`, where calibration and sample-environment decisions are injected,
+which helper modules own the relevant behavior, and which parts of the request
+belong to SNAPWrap versus SNAPRed.
+
+---
+
+## Rationalizations
+
+| Excuse | Rebuttal |
+|--------|----------|
+| "I can just implement the reduction logic directly in SNAPWrap for convenience." | SNAPWrap is a wrapper and orchestration layer. Re-implementing backend reduction logic there creates divergence from SNAPRed and breaks the architecture boundary the rest of the system relies on. |
+| "I can parse workspace names with my own string split." | SNAPWrap already has `redObject`, and the visible name may differ from the timestamped underlying name. Guessing the format is brittle and unnecessary. |
+| "Mask workspaces do not need strict unit naming." | `binMaskList` parsing depends on the workspace name because the workspace itself does not carry a reliable unit attribute. If the suffix is wrong, the mask can be misapplied or rejected. |
+| "Hardcoding calibration paths is faster than using the state manager." | Calibration resolution is state- and cycle-dependent. Hardcoded paths bypass the real source of truth and are exactly how stale or invalid calibrations get used accidentally. |
+| "SEEMeta is optional, so I can ignore it for automation." | `SEEMeta` is the intended pathway for environment-aware reduction branching. Ignoring it forces manual branching logic where the wrapper is already designed to carry the metadata. |
+
+---
+
+## Red Flags
+
+- New code duplicates reduction algorithms that belong in SNAPRed.
+- A script manipulates timestamped workspace names by hand instead of using
+  `redObject` or SNAPWrap helpers.
+- `binMaskList` masks have ambiguous or non-Mantid unit suffixes.
+- Calibration file paths are hardcoded instead of resolved via
+  `checkCalibrationStatus()` or the SNAPRed data layer.
+- Hooks are attached to lifecycle names that were not verified against SNAPRed.
+- Environment-specific behavior is added without consulting `SEEMeta`.
+- Local testing relies on environment assumptions but does not define an
+  `override.yml` or equivalent configuration path.
+
+---
+
+## Verification
+
+- [ ] The workflow entry point is clearly a SNAPWrap library call, usually
+      `snapwrap.utils.reduce()`.
+- [ ] The developer can explain which work stays in SNAPWrap and which is owned
+      by SNAPRed.
+- [ ] Output-name handling uses `redObject` or existing I/O helpers rather than
+      custom parsing.
+- [ ] Any `binMaskList` workspace names follow the required unit-naming
+      contract.
+- [ ] Calibration status is resolved through `checkCalibrationStatus()` or the
+      SNAPRed data layer.
+- [ ] `SEEMeta` lookup and assembly typing are used when sample-environment
+      branching is required.
+- [ ] Hook lifecycle names are verified before adding new hooks.
+- [ ] Configuration is loaded through `WrapConfig` and override behavior is
+      documented for local testing.
+
+Cross-references:
+
+- SNAPRed backend architecture: `sns-snapred-developer-guide`
+- Reduction workflow: `sns-snap-reduction-workflow-overview`
+- Sample-environment masking: `sns-snap-sample-environment-reduction-special-cases`
+- Calibration state controls: `sns-snap-calibration-and-geometry`

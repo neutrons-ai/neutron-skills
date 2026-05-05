@@ -28,6 +28,24 @@ skills/
 - If the skill relies on specific tools, list them in `allowed-tools`
   (space-separated).
 
+### Version 2 anatomy (workflow-first)
+
+For skills using `version: 2`, follow the canonical section order:
+
+- `Overview`
+- `When to Use`
+- `Process`
+- `Rationalizations`
+- `Red Flags`
+- `Verification`
+
+Treat v2 skills as executable workflows, not reference prose. The `Process`
+section should be step-by-step and include checkpoints/exit criteria where
+appropriate; `Rationalizations` and `Verification` are required quality gates.
+
+Ground-truth decision record:
+[docs/ground_truths.md](../../../docs/ground_truths.md)
+
 ## Instrument-specific skills (SNS and HFIR)
 
 The project is expected to scale to instrument-specific skills across SNS and
@@ -188,7 +206,7 @@ For an approved skill, set:
 - `review.reviewer: <Reviewer Name>`
 - `review.reviewed_on: YYYY-MM-DD`
 - `review.basis: [<basis-1>, <basis-2>, ...]`
-- `review.approved_commit: review/<skill-name>-v1`
+- `review.approved_commit: review/<skill-name>-v<version>`
 
 `review.notes` should include a concise statement of what was reviewed and by
 whom.
@@ -211,20 +229,20 @@ git add src/neutron_skills/skills/<domain>/<skill-name>/SKILL.md
 3. Commit:
 
 ```bash
-git commit -m "Review <skill-name> skill (v1)"
+git commit -m "Review <skill-name> skill (v<version>)"
 ```
 
 4. Tag the same commit:
 
 ```bash
-git tag review/<skill-name>-v1
+git tag review/<skill-name>-v<version>
 ```
 
 5. Push branch and tag:
 
 ```bash
 git push origin <branch>
-git push origin review/<skill-name>-v1
+git push origin review/<skill-name>-v<version>
 ```
 
 ### Quick reviewer checklist
@@ -232,5 +250,5 @@ git push origin review/<skill-name>-v1
 - [ ] Skill content is scientifically/operationally correct.
 - [ ] Frontmatter review block is complete and accurate.
 - [ ] `neutron-skills validate` passes for the skill.
-- [ ] Commit message follows `Review <skill-name> skill (v1)`.
-- [ ] Tag follows `review/<skill-name>-v1` and points at the review commit.
+- [ ] Commit message follows `Review <skill-name> skill (v<version>)`.
+- [ ] Tag follows `review/<skill-name>-v<version>` and points at the review commit.

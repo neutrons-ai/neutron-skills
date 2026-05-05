@@ -158,6 +158,68 @@ Reference:
 
 - [src/neutron_skills/skills/diffraction/sns-snap-high-pressure-data-interpretation/SKILL.md](../src/neutron_skills/skills/diffraction/sns-snap-high-pressure-data-interpretation/SKILL.md)
 
+## 2026-05-05: Skill architecture v2 is workflow-first and verifiable
+
+Decision:
+
+- Skills migrated to `version: 2` follow a consistent anatomy:
+  - `Overview`
+  - `When to Use`
+  - `Process`
+  - `Rationalizations`
+  - `Red Flags`
+  - `Verification`
+- Frontmatter keeps the canonical identity contract:
+  - `name`: lowercase-hyphen skill identifier matching directory name.
+  - `description`: concise "guides agents through ... use when ..." intent.
+- `Process` is mandatory workflow content, not background prose. It must include
+  actionable steps and should include checkpoints and exit criteria where
+  appropriate.
+- `Rationalizations` is mandatory anti-rationalization content: common excuses
+  and explicit rebuttals.
+- `Verification` is mandatory and evidence-driven: completion requires concrete
+  checks (validation commands, test/build/runtime evidence), not subjective
+  confidence.
+- Progressive disclosure is the default: keep `SKILL.md` focused on execution,
+  and load extended references/assets only when needed.
+
+Rationale:
+
+- A fixed anatomy improves retrieval and agent execution consistency.
+- Workflow-first structure reduces omission risk and makes behavior auditable.
+- Anti-rationalization plus explicit verification hardens quality gates.
+- Progressive disclosure controls token usage while preserving depth on demand.
+
+Source:
+
+- Architecture pattern adapted from: https://github.com/addyosmani/agent-skills
+- Project-local adoption context: refactors marked `version: 2` in
+  `src/neutron_skills/skills/diffraction/*/SKILL.md`.
+
+## 2026-05-05: Skill validation commands use explicit pixi specs and PYTHONPATH
+
+Decision:
+
+- Validate skills with explicit pixi specs and source-path import context:
+
+  `pixi exec --spec python=3.11 --spec click --spec pyyaml env PYTHONPATH=src python -m neutron_skills.cli validate <target>`
+
+- Do not rely on implicit/default pixi environment selection for validation
+  commands in this repository.
+
+Rationale:
+
+- In this repository, `pixi exec` without explicit specs can fail environment
+  solving (`No candidates were found for env *`).
+- Running without `PYTHONPATH=src` can fail module discovery for
+  `python -m neutron_skills.cli`.
+- The explicit command shape has been repeatedly successful and is now the
+  stable validation baseline.
+
+Reference:
+
+- [src/neutron_skills/cli.py](../src/neutron_skills/cli.py)
+
 ## Instrument-specific decisions
 
 Decisions that are scoped to a single instrument live in `docs/instruments/`.

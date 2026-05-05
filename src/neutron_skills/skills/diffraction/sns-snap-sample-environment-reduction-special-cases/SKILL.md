@@ -5,21 +5,32 @@ description: >
   special cases. Use when a paris-edinburgh cell, diamond anvil cell (DAC), or
   cylinder cell is in the beam and the standard reduction sequence requires
   environment-specific masking, notching, or background handling.
-version: 1
+version: 2
 review:
-  status: human-reviewed
-  reviewer: Malcolm Guthrie
-  reviewed_on: 2026-04-30
-  basis: [docs, code, instrument-science-review]
+  status: pending
+  reviewer: null
+  reviewed_on: null
+  basis: []
   notes: >
-    Initial draft authored from instrument-scientist domain notes covering PE,
-    DAC, and cylinder cell impacts on SNAP reduction. Encoded current operational
-    practice including semi-manual workflow status, snapwrap masking interfaces,
-    and outstanding R&D items. Review completed with DAC/PE/cylinder
-    analysis-stage artifact guidance and SEEMeta lookup priority aligned to
-    current snapwrap behavior. Cross-linked to existing workflow, calibration,
-    and diagnostics skills.
-  approved_commit: review/sns-snap-sample-environment-reduction-special-cases-v1
+    v2: restructured to required skill anatomy (Overview / When to Use /
+    Process / Rationalizations / Red Flags / Verification). Prior reviewed
+    technical content preserved and reorganized. Awaiting instrument-scientist
+    sign-off.
+  approved_commit: null
+  prior_review:
+    status: human-reviewed
+    reviewer: Malcolm Guthrie
+    reviewed_on: 2026-04-30
+    basis: [docs, code, instrument-science-review]
+    notes: >
+      Initial draft authored from instrument-scientist domain notes covering PE,
+      DAC, and cylinder cell impacts on SNAP reduction. Encoded current operational
+      practice including semi-manual workflow status, snapwrap masking interfaces,
+      and outstanding R&D items. Review completed with DAC/PE/cylinder
+      analysis-stage artifact guidance and SEEMeta lookup priority aligned to
+      current snapwrap behavior. Cross-linked to existing workflow, calibration,
+      and diagnostics skills.
+    approved_commit: review/sns-snap-sample-environment-reduction-special-cases-v1
 metadata:
   facility: SNS
   beamline: BL3
@@ -46,312 +57,302 @@ metadata:
 
 # SNAP Sample-Environment Reduction Special Cases
 
-Use this skill when a specific high-pressure sample environment is present and
-the reduction workflow requires environment-specific modifications.  The
-standard reduction workflow (described in
-[sns-snap-reduction-workflow-overview](../sns-snap-reduction-workflow-overview/SKILL.md))
-applies; this skill provides the branches that deviate from it.
+## Overview
 
-SNAP is primarily a high-pressure powder diffractometer. Almost all
-measurements use a high-pressure device that introduces occlusion, beam
-attenuation, and background features not present in open-geometry experiments.
-Each device class has a distinct set of reduction impacts and current solution
-status.
+This skill guides SNAP powder-diffraction reduction when a high-pressure sample
+environment changes the standard reduction path. Use it together with
+[sns-snap-reduction-workflow-overview](../sns-snap-reduction-workflow-overview/SKILL.md):
+that skill gives the baseline sequence, and this skill defines the branches for
+Paris-Edinburgh cells, diamond anvil cells, and cylinder cells.
 
-## Provenance map
+SNAP is primarily a high-pressure powder diffractometer, so many measurements
+include beam attenuation, detector occlusion, and background features that are
+not present in open-geometry reduction. Each environment class requires its own
+masking, background, and downstream-analysis decisions.
 
-- snapwrap (user interface — first):
-  - Hosts all sample-environment masking utilities under `snapwrap.maskUtils`.
-  - Exposes `swissCheese` objects for combined pixel and bin mask management.
-  - Passes environment-specific mask inputs to the reduction engine via the
-    `binMaskList` argument and pixel mask inputs to `reduce`.
-  - Communicates environment context to snapred via custom reduction hooks.
-  - Provides `SEEMeta` extraction tools to retrieve assembly metadata from run
-    logs.
-- snapred (backend logic):
-  - Receives environment-specific mask inputs and hook parameters from snapwrap.
-  - Applies masking and binning decisions during reduction orchestration.
-  - Routes output to `reduced` or `diagnostic` label based on calibration
-    completeness (unaffected by environment type).
-- Mantid (framework):
-  - Executes masking, binning, focusing, and unit-conversion algorithms
-    underlying the snapred reduction pipeline.
+### Provenance
 
-## Evidence tracking
+- **snapwrap**: hosts masking utilities under `snapwrap.maskUtils`, provides
+  `swissCheese` objects for combined pixel and bin masks, passes mask inputs via
+  `reduce(..., binMaskList=...)` and `reduce(..., pixelMask=...)`, communicates
+  environment context through reduction hooks, and provides `SEEMeta`
+  extraction tools.
+- **snapred**: applies the prepared environment-specific masking and binning
+  decisions during reduction orchestration; output-label logic remains driven by
+  calibration completeness, not environment class.
+- **Mantid**: executes the masking, focusing, binning, and unit-conversion
+  algorithms underneath the reduction workflow.
 
-**Domain notes baseline** (2026-04-30):
-- Source: instrument-scientist domain notes (Malcolm Guthrie).
-- Coverage: PE cell, DAC cell, cylinder cell — device characteristics,
+### Evidence
+
+- Domain notes baseline (2026-04-30): instrument-scientist notes from Malcolm
+  Guthrie covering PE, DAC, and cylinder-cell device characteristics,
   reduction impacts, and current solution status.
 
-## Context to collect before use
+---
 
-- Assembly type from SEEMeta: `assembly.pe`, `assembly.dac`, or cylinder
-  variant, plus nickname/model/comment when available.
-  - SEEMeta lookup order in `snapwrap`: (1) IPTS override file
-    `/IPTS-{ipts}/shared/SEE/SEE{runNumber}.json`, then (2) embedded JSON
-    dictionary in the neutron data file run logs. This supports user override
-    of embedded values when corrections are needed. If neither source is
-    available, fall back to manual identification by run number or
-    documentation.
-- Whether a pixel mask for this environment already exists and is current.
-- Whether wavelength-specific bin masks are required (DAC) or previous masks
-  can be reused.
-- Grouping scheme in use: column grouping has angular-coverage implications
-  for DAC measurements (see DAC section below).
-- Calibration state: environment-specific masking does not change calibration
-  requirements; see
+## When to Use
+
+Use this skill when:
+
+- `SEEMeta` or run documentation indicates `assembly.pe`, `assembly.dac`, or a
+  cylinder-cell variant.
+- The standard SNAP reduction workflow needs environment-specific pixel masks,
+  wavelength notching, attenuation correction, or nonstandard background
+  handling.
+- You need to decide whether artifacts should be handled during reduction or
+  deferred to analysis.
+
+Do **not** use this skill when:
+
+- The experiment is an open-geometry reduction case with no sample-environment
+  driven masking or attenuation problems.
+- You are deciding calibration validity; use
   [sns-snap-calibration-and-geometry](../sns-snap-calibration-and-geometry/SKILL.md)
   for calibration state controls.
+- You need full failure-mode escalation after reduction; use
+  [sns-snap-reduction-diagnostics](../sns-snap-reduction-diagnostics/SKILL.md).
+
+### Required context before starting
+
+- Assembly type from `SEEMeta`: `assembly.pe`, `assembly.dac`, or cylinder
+  variant, plus nickname/model/comment when available.
+- `SEEMeta` lookup order in `snapwrap`: (1) IPTS override file
+  `/IPTS-{ipts}/shared/SEE/SEE{runNumber}.json`, then (2) embedded run-log JSON.
+  If neither source is available, fall back to manual identification.
+- Whether an environment-specific pixel mask already exists and is current.
+- Whether wavelength-specific bin masks are required or can be reused.
+- Grouping scheme in use. For DAC data, column grouping can create serious
+  angular-coverage and d-range gaps after notching.
+- Current calibration status. Environment handling changes masking and
+  background work, but not calibration requirements.
 
 ---
 
-## Paris-Edinburgh (PE) cells
+## Process
 
-**Device characteristics**
+1. **Identify the environment class before reduction** — Determine whether the
+   run uses a PE cell, DAC, or cylinder cell. Prefer `SEEMeta`; if that is
+   missing, use run documentation or manual instrument records. Record the
+   environment class and evidence source in reduction notes.
 
-PE cells are hydraulically driven presses that compress approximately
-spherical samples (3–6 mm diameter) between two opposed anvils.  A metallic
-gasket — typically TiZr alloy — provides lateral containment.  Anvil
-materials include sintered diamond (SD), zirconium-toughened alumina (ZTA),
-and tungsten carbide (WC); each has distinct mechanical and neutronics
-properties.  Maximum pressure is approximately 20 GPa.  Temperature range
-extends from room temperature down to approximately 10 K; high-temperature
-capability is not currently available on SNAP.
+   **[CHECKPOINT]**: The assembly type is known and documented.
 
-Assembly type in SEEMeta: `assembly.pe`.
+2. **Load the baseline reduction path first** — Start from
+   [sns-snap-reduction-workflow-overview](../sns-snap-reduction-workflow-overview/SKILL.md)
+   and keep its calibration and output-label logic intact. This skill only adds
+   the environment-specific branches.
 
-**Reduction impacts**
+3. **Prepare the environment-specific mask strategy in snapwrap** — Use the
+   snapwrap masking layer as the integration point.
 
-| Impact | Description |
-|--------|-------------|
-| Pixel occlusion | Anvil body blocks a large fraction of detector pixels; occluded pixels must be excluded by a PE-specific pixel mask. |
-| Beam attenuation | Incident beam is attenuated primarily by the TiZr gasket. |
-| Background | Gasket scattering contributes a large but smooth background due to TiZr null-scattering properties; no sharp parasitic peaks expected from the gasket itself. |
-| Anvil scattering | Anvil material (SD, ZTA, WC) introduces material-specific background; WC has the largest cross-section. |
+   | Component | Role |
+   |-----------|------|
+   | `snapwrap.maskUtils.swissCheese` | Manages combined pixel and bin mask objects and can construct masks from UB matrix pairs or workspace history. |
+   | `reduce(..., binMaskList=...)` | Accepts one or more bin masks in TOF, wavelength, Q, or d-spacing. |
+   | `reduce(..., pixelMask=...)` | Accepts a pixel mask for environment occlusion. |
+   | Reduction hooks | Passes environment-specific parameters into snapred orchestration. |
 
-**Required reduction modifications**
+4. **Apply the correct environment branch** — Use the branch that matches the
+   identified device class.
 
-1. Apply a PE-specific pixel mask to remove pixels occluded or contaminated by
-   anvil scattering.  This mask is geometry-dependent and is not the same
-   across all PE cell configurations.
-2. Background handling: TiZr null-scattering means the gasket background is
-   smoothly varying and can be treated as a continuous background component.
-   Sharp features in background most likely originate from anvil material.
+   ### Paris-Edinburgh (PE) branch
 
-**Not yet implemented**
+   Device facts:
 
-- Attenuation corrections for gasket and anvils are not currently implemented
-  in snapred.  This is a known limitation; corrections must be applied
-  post-reduction if required for quantitative analysis.
+   - Hydraulically driven opposed-anvil press with approximately spherical
+     3-6 mm samples.
+   - TiZr gasket provides lateral containment.
+   - Common anvil materials: sintered diamond, zirconium-toughened alumina,
+     tungsten carbide.
+   - Pressure up to about 20 GPa; low-temperature operation down to about 10 K.
 
-**Analysis-stage artifacts (post-reduction)**
+   Reduction impacts:
 
-- PE anvil materials can contribute powder Bragg peaks to the reduced pattern.
-  These are not single-crystal spot artifacts and cannot be removed by the
-  masking/notching workflow; handle them during analysis (for example, by
-  explicit phase/background treatment in Rietveld refinement).
+   | Impact | Description |
+   |--------|-------------|
+   | Pixel occlusion | Large detector regions are shadowed by the anvil body and require a geometry-specific pixel mask. |
+   | Beam attenuation | Incident beam is attenuated primarily by the TiZr gasket. |
+   | Background | TiZr contributes smooth background; sharp background structure usually points to anvil material instead. |
+   | Anvil scattering | SD, ZTA, and WC produce different background behavior; WC is the most scattering-intensive. |
 
-**Key diagnostic signatures for PE experiments**
+   Required actions:
 
-- Large region of zero or near-zero counts in detector image →
-  pixel mask coverage may be insufficient or shifted.
-- Sharp structured background features not present in open-geometry measurement →
-  check anvil material identification.
-- See [sns-snap-reduction-diagnostics](../sns-snap-reduction-diagnostics/SKILL.md)
-  for full failure-mode escalation guidance.
+   - Apply a PE-specific pixel mask for occluded or contaminated detector
+     regions.
+   - Treat the TiZr gasket as a smooth background contributor.
+   - If sharp background structure appears, verify anvil material assignment.
 
----
+   Known limitation:
 
-## Diamond Anvil Cells (DACs)
+   - Attenuation corrections for gasket and anvils are not yet implemented in
+     snapred. Quantitative attenuation treatment must be handled later if
+     required.
 
-**Device characteristics**
+   Analysis carryover:
 
-DACs use opposed single-crystal diamond anvils with flat polished culets of
-0.8–1.6 mm diameter.  The sample is contained in a metallic gasket (tungsten,
-rhenium, or steel) 0.1–0.2 mm thick.  DACs can exceed 100 GPa and are the
-highest-pressure devices available on SNAP.  Temperature range extends from
-room temperature down to approximately 10 K.
+   - PE anvil materials can contribute powder Bragg peaks to reduced data; these
+     are handled during analysis, not by masking/notching.
 
-Assembly type in SEEMeta: `assembly.dac`.
+   ### Diamond anvil cell (DAC) branch
 
-**Reduction impacts**
+   Device facts:
 
-The small sample volume and complex beam path through the diamonds make DAC
-reduction significantly more complex than PE.
+   - Opposed single-crystal diamond anvils with 0.8-1.6 mm culets.
+   - Metallic gasket typically tungsten, rhenium, or steel.
+   - Pressure can exceed 100 GPa; low-temperature operation down to about 10 K.
 
-| Impact | Description |
-|--------|-------------|
-| Diamond Bragg scattering | As the incident beam passes through each diamond, specific wavelengths satisfy the Bragg condition for the diamond lattice.  This produces: (1) localised single-crystal diffraction spots on the detector, (2) diffuse scattering extending beyond the spots, and (3) highly distributed multiple scattering. |
-| Structured beam attenuation | Scattering at Bragg-condition wavelengths removes neutrons from the transmitted beam, creating sharp dips in the wavelength response.  This modifies the effective wavelength distribution seen by the sample. |
-| d-coverage gaps | Removing wavelength bands from the reduction introduces gaps in d-spacing coverage.  Low-angular-coverage subgroups (e.g. column grouping) are most affected and may show significant d-gaps. |
-| Complex resolution function | Wavelength notching creates a non-standard effective instrument resolution function.  This is currently supported only in GSAS-II analysis; other analysis codes require special handling or exclusion of notched regions. |
+   Reduction impacts:
 
-**Primary mitigation strategy: wavelength notching**
+   | Impact | Description |
+   |--------|-------------|
+   | Diamond Bragg scattering | Produces localized spots, diffuse scattering, and multiple scattering from the diamonds. |
+   | Structured beam attenuation | Bragg-condition wavelengths are removed from the transmitted beam, creating sharp wavelength dips. |
+   | d-coverage gaps | Wavelength removal creates d-spacing gaps, especially for narrow-angle groupings such as columns. |
+   | Complex resolution function | Notching creates a nonstandard effective resolution function currently supported quantitatively only in GSAS-II. |
 
-Wavelength notching identifies affected wavelength bands and excludes them
-from the reduction using bin masks.  This is the recommended first-line
-approach for DAC data.
+   Primary mitigation:
 
-Requirements for successful notching:
-- Sufficient angular coverage in the chosen grouping scheme to maintain
-  acceptable d-range despite missing wavelength bands.
-- Check that analysis code supports non-uniform wavelength coverage
-  (currently GSAS-II only for quantitative Rietveld work).
-- Experimental alignment of each diamond anvil relative to the beam is
-  critical. If a diamond unit-cell axis is even slightly misaligned from the
-  beam, Bragg-wavelength degeneracy is lifted: symmetry-equivalent
-  reflections produce multiple notch wavelengths rather than a single notch.
-  Larger misalignment increases wavelength spread, requiring broader/more
-  notch removal and reducing usable coverage.
+   - Use wavelength notching as the first-line correction.
+   - Confirm the chosen grouping preserves acceptable d-range after notch
+     removal.
+   - Confirm the downstream analysis code can tolerate nonuniform wavelength
+     coverage; for quantitative Rietveld work this currently means GSAS-II.
 
-**Notch generation: two pathways**
+   Notch-generation pathways:
 
-Both pathways are currently semi-manual.  Full automation is a high-priority
-development target.
+   - **Transmission inspection**: identify notch wavelengths from dips in the
+     transmitted beam spectrum.
+   - **UB matrix calculation**: fit the orientation of both diamonds and use
+     `snapwrap.maskUtils.swissCheese` to calculate notch masks from the diamond
+     UB matrices.
 
-*Pathway 1 — transmission inspection:*
-Inspect the transmitted beam spectrum; affected wavelengths appear as sharp
-dips at specific wavelengths.  Notch positions are determined by eye or by
-automated dip-finding.
+   Supplementary action:
 
-*Pathway 2 — UB matrix calculation:*
-Determine the crystallographic orientation (UB matrix) of each diamond by
-fitting its single-crystal diffraction pattern.  Calculate affected wavelengths
-from the diamond UB matrices using `snapwrap.maskUtils.swissCheese`, which
-provides methods to construct notch masks from a specified UB matrix pair
-(one matrix per diamond).
+   - Add manual bin masking when notching alone leaves artifact regions.
+   - Typical workflow: convert to the desired unit, inspect in MantidWorkbench
+     `ShowInstrument`, mark artifact regions, extract a `swissCheese` object via
+     `ExtractFromWorkspaceHistory`, then combine it with notch masks.
 
-Resultant notch masks are applied during reduction by passing them in the
-`binMaskList` argument to `reduce`.  Multiple masks in different units
-(TOF, wavelength, Q, d-spacing) can be supplied simultaneously.
+   Known limitations:
 
-**Supplementary manual bin masking**
+   - Both notch-generation pathways remain semi-manual.
+   - Analysis codes other than GSAS-II may require exclusion of notched regions
+     or special handling.
 
-Wavelength notching alone may not remove all artifact regions.  Manual bin
-masking is typically applied in addition to notching:
+   Analysis carryover:
 
-1. Convert the full three-dimensional dataset to the unit of choice
-   (pre-reduction but optionally post-notching) using Mantid.
-2. Inspect data using the MantidWorkbench `ShowInstrument` view.
-3. View slices at specific x-unit ranges and manually mark artifact regions
-   for exclusion.
-4. Extract the mask into a `swissCheese` object using the
-   `swissCheese.ExtractFromWorkspaceHistory` method.
-5. Combine with notch masks and pass the combined object into reduction via
-   `binMaskList`.
+   - DAC gasket peaks and DAC-collimator scattering can survive reduction and
+     must be treated explicitly during analysis.
 
-Manual mask generation will be automated in a future snapwrap release.
+   ### Cylinder-cell branch
 
-**Analysis-stage artifacts (post-reduction)**
+   Device facts:
 
-- The beam can intersect the DAC gasket, producing gasket Bragg peaks in the
-  reduced data. These peaks are identifiable by the characteristic d-spacings
-  of the gasket material and should be handled during analysis (for example,
-  with explicit phase/background treatment in Rietveld refinement).
-- Scattering from the DAC collimator (located very close to the sample) has
-  also been observed and is a warning flag for experimental setup issues.
-  It manifests as additional Bragg peaks from the collimator, but can be
-  difficult to identify unambiguously because the off-center upstream
-  collimator position shifts the apparent d-spacing of those peaks.
+   - Includes both gas cylinders and piston-cylinder devices.
+   - Pressure up to about 2 GPa; often used at cryogenic temperatures.
 
-**Key diagnostic signatures for DAC experiments**
+   Reduction impacts:
 
-- Sharp-edged gaps in d-coverage at specific d values →
-  notch mask is applied; verify coverage is acceptable for analysis.
-- Residual structured background at positions corresponding to diamond d-spacings →
-  notching is incomplete; review UB matrix accuracy or extend manual mask.
-- Unexpected broadening in analysis code other than GSAS-II →
-  resolution function from notching is not modelled; switch to GSAS-II or
-  exclude notched regions from analysis.
+   | Impact | Description |
+   |--------|-------------|
+   | Beam attenuation | Cylinder walls attenuate both incident and diffracted beams. |
+   | Bragg-edge attenuation structure | Cylinder material introduces wavelength-dependent attenuation that must be modeled, not simply masked. |
+   | Background | Cylinder-body background must be subtracted or otherwise modeled. |
 
----
+   Required actions:
 
-## Cylinder Cells
+   - Apply attenuation correction with cylinder geometry and material included.
+   - Use empty-cell background subtraction when valid.
+   - At higher pressures, reassess empty-cell validity because the cell itself
+     deforms under load.
 
-**Device characteristics**
+   Known limitation:
 
-Cylinder cells take two forms:
-- Gas cylinders: a simple cylinder containing a pressurised gas sample.
-- Piston-cylinder devices: the sample is contained in a cylinder compressed
-  from both ends by pistons.
+   - Robust background treatment for pressure-deformed cylinder geometry is
+     still active R&D and is not yet a standard workflow.
 
-Maximum pressure is approximately 2 GPa.  Temperature operation is typically
-cold (down to liquid-He temperatures with appropriate cryostat).
+   Analysis carryover:
 
-**Reduction impacts**
+   - Cylinder-cell scattering may remain in reduced data and must be handled in
+     analysis with explicit container/background terms.
 
-| Impact | Description |
-|--------|-------------|
-| Beam attenuation | The cylinder wall attenuates the incident and diffracted beams; an attenuation correction is required for quantitative work. |
-| Bragg-edge attenuation structure | The cylinder material introduces wavelength-structured attenuation at wavelengths corresponding to its own crystallographic Bragg edges.  These must be correctly modelled in the attenuation correction, not simply masked out. |
-| Background | The cylinder body contributes a background component that must be subtracted. |
+5. **Run reduction with the prepared masks and note the limitations** — Pass
+   pixel masks and/or `binMaskList` into `reduce`, record why each mask exists,
+   and explicitly write down anything the current workflow does not correct
+   (for example unimplemented attenuation treatment or manual notch bounds).
 
-**Required reduction modifications**
+6. **Check quality gates before accepting the output** — Confirm:
 
-1. Apply an attenuation correction that accounts for the cylinder geometry and
-   material, including Bragg-edge structure in the attenuation.
-2. Background subtraction:
-   - An empty-cell measurement is the preferred method.
-   - At higher pressures the cylinder itself is modified by the applied pressure,
-     degrading the empty-cell background estimate.  In these cases, background
-     determination from the data is required.
+   - Pixel masks cover all occluded or contaminated detector regions.
+   - For DAC data, notch positions are confirmed against UB matrices or observed
+     transmission dips, and remaining coverage is acceptable.
+   - For cylinder data, attenuation correction and background subtraction are
+     justified for the pressure state.
+   - Output label is `reduced` or `diagnostic` for calibration reasons only;
+     sample environment does not alter output-label logic.
+   - GSAS-II compatibility is confirmed before attempting quantitative analysis
+     of notched DAC data.
 
-**Not yet implemented / active R&D**
+7. **Hand off explicit analysis-stage warnings** — Record what artifacts may
+   remain after reduction so the analysis stage does not treat them as sample
+   signal by mistake.
 
-- Robust background determination that accounts for pressure-modified container
-  geometry is under active development.  This is not currently available as a
-  standard workflow.
-
-**Analysis-stage artifacts (post-reduction)**
-
-- Scattering from the cylinder cell body can contaminate the sample
-  diffraction signal. Treat these contributions explicitly during analysis
-  (for example, with container/background terms in Rietveld refinement),
-  particularly at high pressure where container response changes with load.
-
-**Key diagnostic signatures for cylinder experiments**
-
-- Structured residuals in reduced data at positions corresponding to container
-  material d-spacings → background subtraction is insufficient; check container
-  identification and Bragg-edge correction quality.
-- Systematic offset vs empty-cell background at high pressure → container has
-  been deformed by pressure; standard empty-cell subtraction is unreliable.
+**Exit criteria**: The reduction sequence is adapted to the identified sample
+environment, required masks are constructed and supplied to `reduce`, mask and
+background choices are documented, unresolved corrections are recorded, and
+post-reduction analysis warnings are explicitly handed off.
 
 ---
 
-## snapwrap integration summary
+## Rationalizations
 
-The bulk of sample-environment adaptation is implemented in snapwrap; snapred
-receives the prepared inputs via reduction hooks.
+| Excuse | Rebuttal |
+|--------|----------|
+| "The standard reduction path is probably fine even with a pressure cell." | Sample-environment effects are the point of failure here: occlusion, attenuation, and container/background artifacts are environment-specific. Running the baseline path without the environment branch produces misleading outputs, not just slightly imperfect ones. |
+| "I can ignore `SEEMeta` and infer the environment later from the plot." | Environment identification controls mask choice and notching strategy up front. Deferring identification turns a deterministic branch decision into guesswork after artifacts are already baked into the reduction. |
+| "DAC notching is too much work; I will just live with the artifacts." | For DAC data the structured wavelength loss changes both artifact content and usable d-range. Skipping notching means the reduction is knowingly wrong in a way that downstream fitting may misinterpret as sample physics. |
+| "Any analysis code can handle notched DAC data." | The effective resolution function after wavelength notching is not generally supported. Quantitative DAC Rietveld analysis currently requires GSAS-II unless the notched regions are excluded deliberately. |
+| "Empty-cell subtraction is always good enough for cylinder cells." | At higher pressure the container itself changes under load, so the empty-cell measurement may no longer represent the actual background. Blind subtraction can create structured residuals that look like sample features. |
 
-| Component | Role |
-|-----------|------|
-| `snapwrap.maskUtils.swissCheese` | Manages combined pixel and bin mask objects; provides construction methods (e.g., from UB matrix pairs) and extraction from workspace history. |
-| `reduce(..., binMaskList=...)` | Accepts a list of bin mask objects in any unit (TOF, wavelength, Q, d-spacing); multiple masks combined automatically. |
-| `reduce(..., pixelMask=...)` | Accepts a pixel mask for environment occlusion (e.g., PE anvil shadow). |
-| Reduction hooks | Environment-specific parameters are passed to snapred reduction orchestration via snapwrap-defined hooks; consult current snapwrap API docs for hook interface. |
-| SEEMeta extraction | Use snapwrap tools with priority: IPTS override file first, embedded run-log JSON second (to allow user correction of embedded values). If neither is available, fall back to manual identification. |
+---
 
-## Quality gates
+## Red Flags
 
-- Pixel mask accounts for all occluded or contaminated detector regions.
-- For DAC: wavelength notch positions confirmed against diamond UB matrices
-  or observed transmission dips; coverage after notching is acceptable for
-  the chosen grouping and analysis code.
-- For cylinder: attenuation correction applied; empty-cell background
-  subtraction validity assessed relative to applied pressure.
-- Output label is `reduced` (full calibration available) or `diagnostic`
-  (approximation pathway used); environment masking does not change the
-  label logic.
-- Analysis code compatibility confirmed: GSAS-II required for notched DAC
-  data in quantitative Rietveld work.
+- Large regions of zero or near-zero counts in a PE detector image after masking
+  changes: PE pixel-mask coverage may be shifted or incomplete.
+- Sharp structured background in a PE reduction where only smooth TiZr-like
+  behavior was expected: check anvil material identification.
+- Sharp-edged d-coverage gaps in DAC reductions: notching is active; verify the
+  remaining coverage is acceptable for the chosen grouping.
+- Residual DAC background at diamond d-spacings after notching: UB matrices or
+  manual mask extent may be wrong.
+- Unexpected profile broadening when analyzing notched DAC data outside GSAS-II:
+  downstream resolution modeling is likely invalid.
+- Structured residuals at cylinder material d-spacings: container background or
+  Bragg-edge attenuation correction is inadequate.
+- Systematic mismatch between high-pressure cylinder data and empty-cell
+  subtraction: the pressure-loaded container no longer matches the empty-cell
+  reference.
 
-## Output expectations
+---
 
-- A reduction sequence adapted to the identified sample environment.
-- Mask objects (pixel and/or bin) constructed and ready for the `reduce` call.
-- A recorded rationale for mask choices and any known limitations
-  (e.g., pending attenuation correction, manual notch bounds).
-- Explicit statement of what is not corrected in the current reduction and
-  what post-reduction handling is required.
+## Verification
+
+- [ ] Environment class is identified and documented from `SEEMeta` or a clear
+      manual source.
+- [ ] The baseline reduction workflow was used and only environment-specific
+      branches were altered.
+- [ ] Required pixel masks and/or bin masks are constructed and passed to
+      `reduce`.
+- [ ] Every mask has a recorded rationale and unit convention.
+- [ ] PE runs: pixel-occlusion handling is applied and any missing attenuation
+      treatment is called out explicitly.
+- [ ] DAC runs: notch positions are confirmed from transmission dips or diamond
+      UB matrices, and d-range coverage after notching is acceptable.
+- [ ] Cylinder runs: attenuation correction and background strategy are justified
+      for the current pressure state.
+- [ ] Output label (`reduced` or `diagnostic`) is explained by calibration state,
+      not by environment choice.
+- [ ] Remaining analysis-stage artifacts are explicitly handed off in notes.
+- [ ] Known workflow limitations and post-reduction obligations are documented.

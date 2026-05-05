@@ -5,7 +5,7 @@ description: >
   coding conventions, and extension points. Use when writing new recipes,
   services, or hooks; debugging calibration or reduction workflows; or
   consuming SNAPRed as a backend from an external wrapper such as SNAPWrap.
-version: 1
+version: 2
 review:
   status: pending
   reviewer: null
@@ -37,372 +37,287 @@ metadata:
 
 # SNAPRed Developer Guide
 
-SNAPRed is the data-reduction backend for the SNAP high-pressure diffractometer
-at SNS/ORNL. It is a Python 3.11 application that orchestrates three workflows —
-Diffraction Calibration (DifCal), Normalization Calibration (NormCal), and
-Reduction — on top of the Mantid framework.
+## Overview
 
-**Version coverage**: This skill documents the architecture and conventions
-stable across v2.0.0 (SoftwareX paper, 2026) through the current development
-branch (post-v2.3.1, April 2026). Core architecture (layer structure, cooking
-metaphor, service registration, hooks) remains unchanged; check release notes
-for algorithm and API refinements in specific versions.
+SNAPRed is the reduction backend for SNAP. It is a Python 3.11 application on
+top of Mantid that orchestrates three workflows: diffraction calibration
+(`DifCal`), normalization calibration (`NormCal`), and reduction.
+
+This skill documents the architecture and conventions that stayed stable from
+the v2.0.0 SoftwareX description through the current development branch checked
+on 2026-04-30.
 
 Repository: https://github.com/neutrons/SNAPRed  
 Docs: https://snapred.readthedocs.io/en/latest/  
 Paper: Guthrie et al., SoftwareX 33 (2026) 102464
 
----
+### Evidence
 
-## Evidence tracking
-
-**SoftwareX paper** (v2.0.0 baseline, 2026-04-30):
-- Source: Guthrie et al., SoftwareX 33 (2026) 102464
-- Verified: layer descriptions (Interface → Service → Data → Recipe),
-  DifCal two-step workflow, NormCal vanadium approach, Lite mode factor-of-64
-  compression, workspace naming conventions, calibration index and
-  appliesTo policy, diagnostic output definition.
-
-**Live codebase verification** (post-v2.3.1 development, 2026-04-30):
-- Source: `/Users/66j/Documents/ORNL/code/SNAPRed` (branch: `next`)
-- Verified: cooking metaphor class inventory (Recipe, SousChef, GroceryService),
-  layer structure, hook system, state-ID formation, diagnostic/reduced labelling
-  logic, service path registration.
-- Finding: core architecture stable; v2.0.0 documentation remains accurate for
-  current development version.
+- SoftwareX paper verified the four-layer architecture, calibration workflows,
+  lite mode, workspace naming, calibration index behavior, and
+  diagnostic/reduced labelling.
+- Live codebase verification against `/Users/66j/Documents/ORNL/code/SNAPRed`
+  confirmed the cooking-metaphor class inventory, layer structure, hooks,
+  state-ID formation, and service-path registration remain aligned with the
+  paper.
 
 ---
 
-## Backend layer architecture
+## When to Use
 
-SNAPRed cleanly separates frontend from backend and divides the backend into
-four layers of increasing specificity (outermost → innermost):
+Use this skill when:
 
-```
-InterfaceController   ← sole external entry point; validates, routes, handles errors
-    └── Service layer ← orchestration; registers methods to string paths
-            └── Data layer  ← read/write, cache, revision-control, packaging
-                    └── Recipe layer ← processing unit; executes Mantid algorithms
-```
+- Writing new SNAPRed recipes, services, or request handlers.
+- Debugging calibration or reduction behavior inside the backend.
+- Understanding how SNAPWrap requests flow through SNAPRed.
+- Adding hooks, state-dependent persistence, or new workflow endpoints.
 
-| Layer | Key class(es) | Role |
-|-------|--------------|------|
-| Interface | `InterfaceController` | Receives `SNAPRequest`, routes to Service via `ServiceFactory`, returns `SNAPResponse` |
-| Service | `Service` (ABC), `CalibrationService`, `ReductionService`, `SousChef` | Orchestrates recipes and data; methods registered to paths via `@Register` decorator |
-| Data | `LocalDataService`, `DataFactoryService`, `GroceryService` | Persistence (JSON + HDF5), caching, workspace loading |
-| Recipe | `Recipe[T]` (ABC), concrete subclasses | Actual Mantid algorithm execution |
+Do **not** use this skill when:
 
-**Entry point for external callers (e.g., SNAPWrap):**
-```python
-from snapred.backend.api.InterfaceController import InterfaceController
-controller = InterfaceController.instance()
-response = controller.executeRequest(snap_request)
-```
+- You only need the SNAPWrap wrapper/API layer.
+- You are making scientific workflow decisions rather than backend code changes.
 
 ---
 
-## The cooking metaphor
+## Process
 
-SNAPRed uses a pervasive culinary metaphor throughout the processing layer.
-This is intentional and internal — **user-facing skill language should avoid
-the metaphors** but developers must know them to navigate the code.
+1. **Start from the backend layer model** — SNAPRed is organized into four
+  layers from outermost to innermost:
 
-| Metaphor term | Code class / concept | What it is |
-|---------------|---------------------|-----------|
-| **Recipe** | `Recipe[Ingredients]` (ABC, `backend/recipe/Recipe.py`) | Abstract base for all processing workflows; generic over Ingredients type |
-| **Ingredients** | Pydantic `BaseModel` subclasses (`backend/dao/ingredients/`) | Strongly-typed input parameters for a Recipe (e.g., `DiffractionCalibrationIngredients`, `ReductionIngredients`) |
-| **Groceries** | `Dict[str, WorkspaceName]` | Mantid workspace references passed into a Recipe alongside Ingredients |
-| **Pallet** | `Tuple[Ingredients, Dict[str, str]]` | One batch unit: one Ingredients + one Groceries dict pair |
-| **FarmFreshIngredients** | `backend/dao/request/FarmFreshIngredients.py` | Run-time request object used by SousChef to prepare Ingredients before processing |
-| **GroceryListItem** | `backend/dao/ingredients/GroceryListItem.py` | Builder for workspace name construction |
-| **GroceryService** | `backend/data/GroceryService.py` | Loads workspace data; caches groupings, instruments, normalizations |
-| **SousChef** | `backend/service/SousChef.py` | Prepares complex Ingredients; caches pixel groups and peaks; wraps `DataFactoryService` |
-| **Utensils** | `backend/recipe/algorithm/Utensils.py` | Empty `PythonAlgorithm` wrapper that holds `MantidSnapper` for progress reporting |
-| **MakeDirtyDish** | `backend/recipe/algorithm/MakeDirtyDish.py` | Clones a workspace to a new name for diagnostic (CIS mode) inspection |
-| **WashDishes** | `backend/recipe/algorithm/WashDishes.py` | Deletes temporary workspaces; respects CIS mode preservation flag |
-| **FetchGroceriesRecipe** | `backend/recipe/FetchGroceriesRecipe.py` | Loads neutron data, grouping definitions, calibrations into Mantid |
+  ```text
+  InterfaceController
+     -> Service layer
+        -> Data layer
+          -> Recipe layer
+  ```
 
-### Recipe abstract interface
+  | Layer | Key class(es) | Role |
+  |-------|--------------|------|
+  | Interface | `InterfaceController` | Sole external entry point; validates, routes, and returns `SNAPResponse` |
+  | Service | `Service`, `CalibrationService`, `ReductionService`, `SousChef` | Orchestration and path registration |
+  | Data | `LocalDataService`, `DataFactoryService`, `GroceryService` | Persistence, caching, workspace loading |
+  | Recipe | `Recipe[T]` and subclasses | Mantid-algorithm execution units |
 
-Every Recipe must implement four abstract methods plus optional overrides:
+  **[CHECKPOINT]**: Before changing code, identify which layer owns the change.
 
-```python
-class Recipe(ABC, Generic[Ingredients]):
-    def chopIngredients(self, ingredients: Ingredients) -> None:
-        """Extract and validate needed elements from Ingredients into locals."""
+2. **Follow the request path through `InterfaceController`** — External callers
+  such as SNAPWrap should enter through `InterfaceController.executeRequest()`.
 
-    def unbagGroceries(self, groceries: Dict[str, str]) -> None:
-        """Map workspace names from Groceries dict into local variables."""
+  ```python
+  from snapred.backend.api.InterfaceController import InterfaceController
+  controller = InterfaceController.instance()
+  response = controller.executeRequest(snap_request)
+  ```
 
-    def queueAlgos(self) -> None:
-        """Register Mantid algorithms for deferred execution."""
+  If you find yourself bypassing the controller for normal request flow,
+  you are likely breaking the intended architecture boundary.
 
-    def allGroceryKeys(self) -> List[str]:
-        """Declare all workspace keys this recipe expects in Groceries."""
+3. **Understand the cooking metaphor before navigating the code** — SNAPRed's
+  internal processing language is culinary by design.
 
-    # Concrete lifecycle — do not override unless necessary:
-    def stirInputs(self)  -> None: ...  # cross-validate chopped + unbagged data
-    def prep(self) -> None: ...         # validate → unbag → chop → stir → queue
-    def cook(self, ingredients, groceries) -> Any: ...  # call prep(), run queued algos
-    def cater(self, pallets: List[Pallet]) -> Any: ...  # batch-process multiple pallets
-```
+  | Metaphor term | Code class / concept | Meaning |
+  |---------------|---------------------|---------|
+  | `Recipe` | `Recipe[Ingredients]` | Abstract processing workflow |
+  | `Ingredients` | Pydantic models | Strongly typed workflow inputs |
+  | `Groceries` | `Dict[str, WorkspaceName]` | Mantid workspace references |
+  | `Pallet` | `Tuple[Ingredients, Dict[str, str]]` | One batch-processing unit |
+  | `SousChef` | `backend/service/SousChef.py` | Prepares complex ingredients and caches reusable state |
+  | `GroceryService` | `backend/data/GroceryService.py` | Loads workspace data and caches common resources |
+  | `MakeDirtyDish` / `WashDishes` | Diagnostic-preservation / cleanup helpers | Workspace lifecycle control |
 
-### Concrete Recipe subclasses
+  Developer rule:
 
-| Recipe | File | Purpose |
-|--------|------|---------|
-| `PixelDiffCalRecipe` | `recipe/PixelDiffCalRecipe.py` | Pixel-level DIFC calibration via cross-correlation |
-| `GroupDiffCalRecipe` | `recipe/GroupDiffCalRecipe.py` | Group-level focused calibration and peak fitting |
-| `ReductionRecipe` | `recipe/ReductionRecipe.py` | Main reduction workflow |
-| `ApplyNormalizationRecipe` | `recipe/ApplyNormalizationRecipe.py` | Apply vanadium normalization correction |
-| `PreprocessReductionRecipe` | `recipe/PreprocessReductionRecipe.py` | Preprocessing before reduction |
-| `GenerateCalibrationMetricsWorkspaceRecipe` | `recipe/` | Quality metric generation |
-| `GenericRecipe[AlgoType]` | `recipe/GenericRecipe.py` | Template for wrapping a single Mantid algorithm without custom logic |
+  - Use the metaphors to navigate backend code, but do not expose them in
+    user-facing skill language.
 
----
+4. **Implement work through the `Recipe` lifecycle instead of ad hoc Mantid
+  calls** — Recipes should express the workflow in the standard sequence.
 
-## Service layer and path routing
+  Core abstract methods:
 
-Services register methods to string paths using the `@Register` decorator:
+  - `chopIngredients()`
+  - `unbagGroceries()`
+  - `queueAlgos()`
+  - `allGroceryKeys()`
 
-```python
-class CalibrationService(Service):
-    @Register("calibration/ingredients")
-    def prepDiffractionCalibrationIngredients(self, request): ...
+  Concrete lifecycle:
 
-    @Register("calibration/")
-    def diffractionCalibration(self, request): ...
-```
+  - `stirInputs()`
+  - `prep()`
+  - `cook()`
+  - `cater()`
 
-`InterfaceController` routes an incoming `SNAPRequest.path` to the matching
-registered method. Key registered paths:
+  Common concrete recipes include `PixelDiffCalRecipe`, `GroupDiffCalRecipe`,
+  `ReductionRecipe`, `ApplyNormalizationRecipe`, and
+  `PreprocessReductionRecipe`.
 
-| Path | Service | Purpose |
-|------|---------|---------|
-| `"calibration/ingredients"` | `CalibrationService` | Prepare DifCal Ingredients |
-| `"calibration/groceries"` | `CalibrationService` | Fetch DifCal workspace names |
-| `"calibration/"` | `CalibrationService` | Run full DifCal workflow |
-| `"normalization/"` | `CalibrationService` | Run NormCal workflow |
-| `"reduction/validate"` | `ReductionService` | Validate reduction inputs (raises `ContinueWarning` if missing data) |
-| `"reduction/"` | `ReductionService` | Run reduction workflow |
-| `"stateId/"` | `StateIdLookupService` | Resolve state IDs for a list of run configs |
+5. **Route functionality through registered service paths** — Service methods
+  are exposed through `@Register(...)` string paths.
 
----
+  Common paths:
 
-## Instrument state and state IDs
+  | Path | Service | Purpose |
+  |------|---------|---------|
+  | `calibration/ingredients` | `CalibrationService` | Prepare DifCal ingredients |
+  | `calibration/groceries` | `CalibrationService` | Fetch DifCal workspace names |
+  | `calibration/` | `CalibrationService` | Run diffraction calibration |
+  | `normalization/` | `CalibrationService` | Run normalization calibration |
+  | `reduction/validate` | `ReductionService` | Validate reduction inputs |
+  | `reduction/` | `ReductionService` | Run reduction |
+  | `stateId/` | `StateIdLookupService` | Resolve state IDs |
 
-State IDs are 16-character hex digests (SHAKE256) of a rounded `DetectorState`.
+  If you add a workflow, register it explicitly and make the path ownership
+  obvious.
 
-**Formation:**
-1. Read run file header → extract detector PV values
-   (`det_arc1`, `det_arc2`, `BL3:Mot:OpticsPos:Pos`, etc.)
-2. Round PV values per the instrument's `stateIdSchema`
-   (removes encoder jitter; makes state ID deterministic)
-3. Hash the rounded `DetectorState` → `ObjectSHA` (16-char hex)
+6. **Treat instrument state and state IDs as primary backend keys** — State IDs
+  are 16-character SHAKE256 digests of rounded detector state.
 
-**Filesystem layout keyed by state:**
-```
-calibration.powder.home/{stateId}/lite|native/diffraction/v{version}/
-reduction.home/{stateId}/lite|native/{runNumber}/{timestamp}/
-```
+  Formation steps:
 
-**Key class:** `ObjectSHA` (`backend/dao/ObjectSHA.py`)  
-**State data model:** `InstrumentState` (`backend/dao/state/InstrumentState.py`)  
-— contains: `id`, `instrumentConfig`, `detectorState`, `gsasParameters`,
-`particleBounds`, `fwhmMultipliers`
+  1. Read run-header PV values.
+  2. Round them via the instrument `stateIdSchema`.
+  3. Hash the rounded detector state into an `ObjectSHA`.
 
----
+  Filesystem layout:
 
-## Calibration workflows
+  ```text
+  calibration.powder.home/{stateId}/lite|native/diffraction/v{version}/
+  reduction.home/{stateId}/lite|native/{runNumber}/{timestamp}/
+  ```
 
-### DifCal (Diffraction Calibration)
+  Any code that ignores state-ID formation risks misrouting calibrations or
+  reduction outputs.
 
-Two-step workflow run by an instrument scientist before user beamtime:
+7. **Understand calibration workflows before changing reduction behavior** —
+  SNAPRed distinguishes `DifCal` from `NormCal` and persists each through an
+  index structure.
 
-1. **Pixel Calibration** (`PixelDiffCalRecipe`): cross-correlate each pixel's
-   spectrum against a reference pixel within its group; output is a table of
-   logarithmic DIFC offsets.
-2. **Group Calibration** (`GroupDiffCalRecipe`): diffraction-focus the spectra,
-   fit all non-overlapping peaks per group, correct absolute d-spacing offset.
+  DifCal:
 
-Output: diffractometer constants (DIFC table) written to a versioned folder.
-A **Calibration Index** is maintained automatically, tracking which calibration
-applies to which run numbers via the `appliesTo` field.
+  - Pixel-level cross-correlation to derive logarithmic DIFC offsets.
+  - Group-level focusing and peak fitting to set absolute d-spacing behavior.
+  - Results tracked in the Calibration Index via `appliesTo`.
 
-Currently SNAPRed fits DIFC only; the GSAS TOF parameterization also supports
-DIFA, ZERO, DIFB but these are not yet fitted.
+  NormCal:
 
-### NormCal (Normalization Calibration)
+  - Background subtraction from vanadium.
+  - Absorption correction.
+  - Smoothing outside expected Bragg regions.
+  - Persistence as an unfocused event workspace.
 
-Vanadium (or V-Nb alloy) based wavelength-response correction:
+  Current constraint:
 
-1. Subtract background measurement from vanadium data.
-2. Apply absorption correction (resource intensive; allow 10–20 min).
-3. Smooth the result excluding expected Bragg-peak regions.
-4. Persist smoothed correction as an unfocused event workspace.
+  - SNAPRed currently fits `DIFC` only, not the full GSAS TOF parameter set.
 
-A **Normalization Index** mirrors the Calibration Index structure.
+8. **Preserve output-labelling semantics** — `reduced` versus `diagnostic` is
+  determined from calibration state, not from subjective output quality.
 
----
+  ```python
+  isDiagnostic = (diffcalState != DiffcalStateMetadata.EXISTS
+             or normalizationState != NormalizationStateMetadata.EXISTS)
+  ```
 
-## Diagnostic vs reduced output labelling
+  Approximation pathways include missing DifCal, missing NormCal, or alternate
+  calibration files, and all continue-flag decisions are logged in the
+  `ReductionRecord`.
 
-Determined in `ReductionService` from `WorkspaceMetadata`:
+9. **Use hooks as extension points, not code forks** — Hooks let external
+  callers inject callbacks without editing SNAPRed internals.
 
-```python
-isDiagnostic = (diffcalState != DiffcalStateMetadata.EXISTS
-                or normalizationState != NormalizationStateMetadata.EXISTS)
-```
+  Key rule:
 
-| Output label | Condition |
-|-------------|-----------|
-| `reduced` | Both DifCal **and** NormCal are present for this state |
-| `diagnostic` | Either calibration is missing; approximations were used |
+  - All registered hooks must execute successfully; `HookManager` raises if any
+    registered hook fails to run.
 
-Approximation pathways (controlled by continue flags):
-- Missing DifCal → default calibration (VERSION_START) applied; flag `MISSING_DIFFRACTION_CALIBRATION`
-- Missing NormCal → artificial normalization extracted from non-Bragg background; flag `MISSING_NORMALIZATION`
-- Alternative calibration file used → flag `ALTERNATE_DIFFRACTION_CALIBRATION`
+10. **Respect the operational defaults** — Lite mode is the default because it
+   reduces SNAP's native pixel count by about 64x, making all three workflows
+   tractable for routine use. Native mode is expert-only and resource-heavy.
 
-All continue flags are logged in the `ReductionRecord` for traceability.
+11. **Follow backend conventions for reliability** —
 
-**Continue flags require explicit user action** — defaults do not continue;
-the user must set flags to proceed without full calibration.
+  Error handling:
 
----
+  - Use `RecoverableException`, `ContinueWarning`, and
+    `StateValidationException` rather than bare exceptions.
 
-## Hook system
+  Caching:
 
-Hooks allow external callers (e.g., SNAPWrap) to inject custom callbacks into
-the SNAPRed request lifecycle without modifying SNAPRed code.
+  - `SousChef` caches pixel groups and peaks.
+  - `GroceryService` caches groupings, instruments, and normalizations.
+  - Dump the `SousChef` cache when a pixel mask changes.
 
-```python
-# Hook data model
-class Hook:
-    func: Callable
-    kwargs: Dict[str, Any]
+  Singletons:
 
-# Attach hooks to a request
-request = SNAPRequest(path="reduction/", payload=..., hooks={
-    "before_recipe": [Hook(func=my_callback, kwargs={"run": run_number})],
-})
-```
+  - Reset singleton services between tests to prevent state bleed.
 
-`HookManager` (`backend/api/HookManager.py`) executes all registered hooks at
-the designated lifecycle point. All registered hooks must be executed;
-failure to execute any registered hook raises `ValueError`.
+  Configuration:
 
----
+  - Read runtime config through `Config["key.path"]`.
+  - Use `override.yml` for local testing overrides.
 
-## Lite mode and data compression
+12. **Use the minimal workflow checklist when adding new functionality** —
 
-Lite mode compresses the native 1,179,648-pixel SNAP detector to 1,179,648 ÷ 64 =
-~18,432 pixels by down-sampling spatial precision to match the instrument's
-diffraction resolution. This:
-- Accelerates calculations by up to 64×.
-- Reduces histogram data volumes by ~64×.
-- Is the **default** for all three workflows.
+  1. Define `Ingredients` in `backend/dao/ingredients/`.
+  2. Define grocery keys.
+  3. Implement the `Recipe` subclass and document expected inputs.
+  4. Register a service method with `@Register`.
+  5. Wire hooks if needed.
+  6. Update calibration or normalization indexes if artifacts are produced.
+  7. Write tests and reset singletons between cases.
 
-Native mode (`useLiteMode=False`) is available but is an expert/special-case
-setting; RAM requirements are run-specific and depend on data volume, detector
-masking, and available computing resources.
+**Exit criteria**: You can identify the correct SNAPRed layer for a change,
+trace a request from interface to recipe execution, explain the state-ID and
+calibration-index implications, and add or debug workflow logic without
+breaking service-path, hook, or output-labelling conventions.
 
 ---
 
-## Workspace naming conventions
+## Rationalizations
 
-Workspace names follow `WorkspaceNameGenerator`
-(`backend/meta/mantid/WorkspaceNameGenerator.py`):
-
-```
-{base}_{unit}_{grouping}_{run}_{timestamp}
-```
-
-Examples from the paper:
-```
-reduced_dsp_all_064413_2025-11-17T154047
-reduced_dsp_bank_064413_2025-11-17T154047
-reduced_dsp_column_064413_2025-11-17T154047
-dsp_unfoc_lite_064413
-diagnostic_dsp_column_064431_<timestamp>
-```
-
-Key prefixes:
-- `reduced_` — full calibration available
-- `diagnostic_` — approximation pathway used
-- `dsp_` — d-spacing units
-- `unfoc_` — unfocused (pre-diffraction-focusing) workspace
+| Excuse | Rebuttal |
+|--------|----------|
+| "I can just add the logic directly in a service method and skip a recipe." | Recipes are the execution unit that keep Mantid workflow logic testable and structured. Bypassing them erodes the architecture and makes later reuse or batching harder. |
+| "The cooking metaphor is silly, so I can ignore it." | The metaphor is deeply embedded in class and method names. Ignoring it makes the codebase harder to navigate and increases the odds of wiring the wrong abstraction. |
+| "I can infer calibration behavior without checking the indexes or state IDs." | Calibration validity in SNAPRed is state- and index-driven. Skipping that model is how incorrect calibrations get associated with the wrong runs. |
+| "Diagnostic versus reduced is basically a UI choice." | It is a backend semantic tied to calibration state and traceability. Changing or bypassing that logic breaks downstream trust in output labels. |
+| "Singleton state probably will not matter in tests." | SNAPRed caches meaningful backend state. If you do not reset singletons, tests can pass or fail based on leftover state rather than the code under test. |
 
 ---
 
-## Response codes
+## Red Flags
 
-`SNAPResponse` carries a `ResponseCode` enum:
-
-| Code | Meaning |
-|------|---------|
-| `OK` | Success |
-| `RECOVERABLE` | RecoverableException (e.g., missing IPTS, init failure) |
-| `CONTINUE_WARNING` | ContinueWarning: user decision required (missing calibration but can proceed) |
-| `LIVE_DATA_STATE` | Live data transition |
-| `ERROR` | Unrecoverable error |
-
----
-
-## Key developer conventions
-
-### Error handling
-- `RecoverableException`: missing data, initialization failures.
-- `ContinueWarning`: user decision required; raised during `reduction/validate`.
-- `StateValidationException`: invalid instrument state.
-- Use specific exception types; avoid bare `Exception`.
-
-### Caching
-- `SousChef` maintains `_pixelGroupCache` and `_peaksCache`.
-- `GroceryService` caches groupings, instruments, and normalizations.
-- **Dump the SousChef cache when a pixel mask changes**
-  (see `CalibrationService`).
-
-### Singleton pattern
-- Several services use `@Singleton`; reset with `ClassName.reset()` between
-  tests to avoid state bleed.
-
-### Configuration
-- All runtime config accessed via `Config["key.path"]`
-  (`snapred/meta/Config.py`).
-- Override for local testing: edit `override.yml` and run with
-  `env=/path/to/override.yml pixi run snapwrap`.
-
-### Testing
-- Tests follow pytest conventions under `tests/`.
-- Mock Mantid APIs with provided test utilities where needed.
-- Use `@Singleton.reset()` to clear singleton state between test cases.
+- Code changes bypass `InterfaceController` for normal external request flow.
+- Mantid algorithm logic is embedded directly in services instead of recipes.
+- New functionality is added without a registered service path.
+- State IDs or calibration indexes are bypassed in favor of hardcoded paths.
+- Output-labelling logic is altered without reference to calibration-state
+  semantics.
+- Hooks are added without checking execution guarantees or lifecycle behavior.
+- Lite-mode assumptions are broken without an explicit resource/performance
+  reason.
+- Tests do not reset singletons or account for cache invalidation.
 
 ---
 
-## Adding a new workflow: minimal checklist
+## Verification
 
-1. **Define Ingredients** (Pydantic `BaseModel`) in
-   `backend/dao/ingredients/`.
-2. **Define Groceries keys** — the workspace names the new recipe needs.
-3. **Implement a Recipe subclass** in `backend/recipe/`:
-   - Implement `chopIngredients`, `unbagGroceries`, `queueAlgos`,
-     `allGroceryKeys`.
-   - Add a docstring listing all expected Ingredients fields and Grocery keys.
-4. **Register a Service method** in the appropriate Service subclass using
-   `@Register("path/to/endpoint")`.
-5. **Wire hooks** if the new workflow needs SNAPWrap callbacks.
-6. **Update the Calibration or Normalization Index** if the workflow produces
-   calibration artifacts that need to be tracked.
-7. **Write tests** — mock Mantid APIs; reset Singletons between tests.
+- [ ] The owning backend layer for the change is identified before editing.
+- [ ] Request flow from `InterfaceController` to service to recipe is still
+    coherent after the change.
+- [ ] New workflow logic is implemented through a `Recipe` and registered
+    service path when appropriate.
+- [ ] State-ID and calibration-index behavior is preserved or deliberately
+    updated with traceable rationale.
+- [ ] Diagnostic versus reduced output semantics remain tied to calibration
+    state.
+- [ ] Hook usage is explicit and lifecycle-safe.
+- [ ] Caches and singleton reset behavior are handled in tests.
+- [ ] Local configuration/testing assumptions are documented when overrides are
+    required.
 
----
+Cross-references:
 
-## Cross-references
-
-- SNAPWrap wrapper API: see `sns-snapwrap-developer-guide` skill.
-- Reduction workflow overview (user-facing): see
-  `sns-snap-reduction-workflow-overview` skill.
-- Calibration concepts and state controls: see
-  `sns-snap-calibration-and-geometry` skill.
-- Reduction failure modes: see `sns-snap-reduction-diagnostics` skill.
+- SNAPWrap wrapper API: `sns-snapwrap-developer-guide`
+- Reduction workflow overview: `sns-snap-reduction-workflow-overview`
+- Calibration concepts and state controls: `sns-snap-calibration-and-geometry`
+- Reduction failure modes: `sns-snap-reduction-diagnostics`
