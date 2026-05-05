@@ -220,6 +220,27 @@ Reference:
 
 - [src/neutron_skills/cli.py](../src/neutron_skills/cli.py)
 
+## 2026-05-05: Diffraction v2 human reviews are tracked as one-skill-per-commit
+
+Decision:
+
+- For diffraction-domain v2 human skill reviews, each reviewed skill is recorded
+  with exactly one review commit and one matching review tag.
+- Tag format: `review/<skill-name>-v2`.
+- Review tracking and copy/paste command sequence are maintained in:
+  `docs/diffraction-v2-human-review-queue.md`.
+
+Rationale:
+
+- One-skill-per-commit keeps review provenance auditable and easy to roll back
+  or inspect.
+- Per-skill tags make approved versions explicit for downstream references.
+- A single queue document reduces process drift during multi-skill review waves.
+
+Reference:
+
+- [docs/diffraction-v2-human-review-queue.md](diffraction-v2-human-review-queue.md)
+
 ## Instrument-specific decisions
 
 Decisions that are scoped to a single instrument live in `docs/instruments/`.

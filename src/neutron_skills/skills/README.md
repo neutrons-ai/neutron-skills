@@ -213,6 +213,14 @@ whom.
 
 ### Commit and tag procedure
 
+0. Ensure a clean commit boundary before starting the skill review commit:
+
+```bash
+git status --short
+```
+
+Expected result: no unrelated staged/unstaged files for other skills.
+
 1. Validate the reviewed skill:
 
 ```bash
@@ -224,7 +232,10 @@ pixi exec --spec python=3.11 --spec click --spec pyyaml env PYTHONPATH=src \
 
 ```bash
 git add src/neutron_skills/skills/<domain>/<skill-name>/SKILL.md
+git status --short
 ```
+
+Expected staged set: exactly one file (`.../<skill-name>/SKILL.md`).
 
 3. Commit:
 
@@ -250,5 +261,14 @@ git push origin review/<skill-name>-v<version>
 - [ ] Skill content is scientifically/operationally correct.
 - [ ] Frontmatter review block is complete and accurate.
 - [ ] `neutron-skills validate` passes for the skill.
+- [ ] Working tree was checked and commit boundary is clean before staging.
+- [ ] Exactly one reviewed skill file is staged for the commit.
 - [ ] Commit message follows `Review <skill-name> skill (v<version>)`.
 - [ ] Tag follows `review/<skill-name>-v<version>` and points at the review commit.
+
+### Diffraction v2 queue
+
+For the current diffraction-domain v2 review campaign (one commit + one tag per
+reviewed skill), use:
+
+- [docs/diffraction-v2-human-review-queue.md](../../../docs/diffraction-v2-human-review-queue.md)
