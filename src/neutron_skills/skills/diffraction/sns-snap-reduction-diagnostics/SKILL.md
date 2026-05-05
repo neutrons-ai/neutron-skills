@@ -6,15 +6,16 @@ description: >
   inconsistent normalization, or unexpected peak behavior.
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-05
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). All prior content
-    preserved; no domain changes. Awaiting instrument-scientist sign-off.
-  approved_commit: null
+    Reviewed and approved for v2 publication. Confirmed diagnostics updates:
+    calibration/continue-path behavior aligned with current abort defaults,
+    SEE-sensitive diagnostic/provenance checks expanded, and formatting
+    consistency corrected.
+  approved_commit: review/sns-snap-reduction-diagnostics-v2
   prior_review:
     status: human-reviewed
     reviewer: Malcolm Guthrie
@@ -27,7 +28,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [snapwrap, snapred, Mantid]
   data_phase: reduction
   techniques: [diffraction, powder-diffraction, time-of-flight, diagnostics]
@@ -122,13 +123,15 @@ Collect this context before starting:
 
 1. **Check the output label and continue-policy inputs** — Confirm whether the
    workspace prefix is `reduced_` or `diagnostic_`. Retrieve the continue flags
-   used in the run. A `diagnostic_` label with no intentional continue flag set
-   means the calibration lookup failed unexpectedly; treat this as a calibration
-   issue until proven otherwise.
+  used in the run. Standard behavior with missing calibration and no intentional
+  continue flag is reduction abort (no output workspace). If a `diagnostic_`
+  workspace exists, attribute it to an intentional continue pathway first;
+  otherwise treat it as a configuration/traceability anomaly and investigate
+  logs before proceeding.
 
-   **[CHECKPOINT]**: The output label is understood and its cause is attributed
-   to either (a) an intentional continue flag or (b) a calibration lookup
-   failure requiring investigation.
+  **[CHECKPOINT]**: The output state is understood: (a) `reduced_`,
+  (b) `diagnostic_` via intentional continue pathway, or (c) reduction abort
+  with missing calibration while continue flags are unset.
 
 2. **Inspect reduction logs for warnings** — Look for `ContinueWarning`,
    `MISSING_DIFFRACTION_CALIBRATION`, `MISSING_NORMALIZATION`, or
@@ -165,8 +168,8 @@ Collect this context before starting:
    behaviour.
 
 7. **If CIS mode was active, inspect intermediate workspaces** — Check retained
-   intermediate workspaces for offset saturation, failed groups, or unstable
-   fits. These provide the most direct evidence of where the reduction pipeline
+   intermediate workspaces for offset saturation, failed pixels or groups, or unstable
+   fits. These provide the most direct and granular evidence of where the reduction pipeline
    deviated.
 
    **[CHECKPOINT]**: A ranked list of root causes is established. Each cause is
@@ -179,7 +182,8 @@ Collect this context before starting:
 
 9. **Make an explicit output-intent decision** — State clearly: keep the current
    output for exploratory use only, OR recalibrate/remask and rereduce before
-   treating results as final. This decision must be recorded in analysis notes.
+  treating results as final. This decision must be recorded in the reduction
+  record (analysis notes and/or run log).
 
 **Exit criteria**: A ranked root-cause list, a rerun parameter set, and an
 explicit output-intent decision are all documented.
@@ -200,8 +204,9 @@ explicit output-intent decision are all documented.
 
 ## Red Flags
 
-- Output label is `diagnostic_` with no intentional continue flag set →
-  calibration lookup failed unexpectedly. Revisit steps 1–3.
+- Reduction aborted with missing calibration while continue flags are unset
+  (default) → expected behavior. Revisit steps 1–3 to resolve calibration
+  availability or intentionally enable a continue pathway.
 - `MISSING_DIFFRACTION_CALIBRATION` or `ALTERNATE_DIFFRACTION_CALIBRATION`
   flag in the reduction record → peak positions and d-spacing values are
   unreliable. Do not use for final results without recalibration.
@@ -223,8 +228,7 @@ explicit output-intent decision are all documented.
 
 - `sampleFactor=1`: no effective change in bin spacing.
 - `sampleFactor<1`: coarsens bins (downsampling).
-- `sampleFactor>1`: refines bins (upsampling) — warned as lossy in current
-  tooling; rebinning parameters are spectrum-specific within a pixel grouping
+- `sampleFactor>1`: refines bins (upsampling) — warned this simply oversamples existing values; rebinning parameters are spectrum-specific within a pixel grouping
   scheme.
 
 ---
@@ -243,5 +247,8 @@ Before marking this skill complete:
 - [ ] Cross-group normalization and peak-position comparison completed.
 - [ ] Ranked root-cause list recorded in analysis notes.
 - [ ] Rerun parameter set (minimum reproducible changes) recorded.
+- [ ] SEE-specific factors (device class, masking/attenuation assumptions,
+  post-reduce handling requirements) were evaluated and recorded when
+  applicable.
 - [ ] Explicit output-intent decision recorded: exploratory use only, or
       recalibrate/rereduce before final results.
