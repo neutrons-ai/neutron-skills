@@ -3,16 +3,18 @@ name: sns-snap-calibration-and-geometry
 description: Guide calibration and geometry corrections for SNAP reduction workflows. Use when selecting or validating instrument calibrations, detector masks, and geometry-sensitive parameters before reduction.
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-05
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). Prior reviewed
-    technical content preserved and reorganized. Awaiting instrument-scientist
-    sign-off.
-  approved_commit: null
+    v2: expanded scope to cover 4 explicit workflows (difcal generation,
+    normcal generation, reduction-time calibration validation/use,
+    instrument-parameter file production/validation). Process section
+    refactored into labelled branches A–D with branch-specific checkpoints
+    and conditional exit criteria and verification checklist. Normalized
+    US English spelling (artifact).
+  approved_commit: review/sns-snap-calibration-and-geometry-v2
   prior_review:
     status: human-reviewed
     reviewer: Malcolm Guthrie
@@ -30,7 +32,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [snapwrap, snapred, Mantid]
   data_phase: reduction
   techniques: [diffraction, powder-diffraction, time-of-flight, calibration]
@@ -42,8 +44,18 @@ metadata:
 ## Overview
 
 This skill covers calibration and geometry decisions for SNAP powder-diffraction
-reduction workflows. Single-crystal SNAP diffraction uses different calibration
-and reduction pathways and is **out of scope** here.
+workflows. Single-crystal SNAP diffraction uses different calibration and
+reduction pathways and is **out of scope** here.
+
+This skill is intentionally broader than reduction-only checks. It covers both
+calibration generation and calibration use/validation.
+
+### Supported workflows
+
+1. `difcal` generation (SNAPRed calibration workflow).
+2. `normcal` generation (SNAPRed calibration workflow).
+3. Reduction-time calibration validation/use (SNAPWrap + SNAPRed).
+4. Instrument-parameter file production/validation for downstream Rietveld work.
 
 ### Three distinct calibration products
 
@@ -60,9 +72,9 @@ In current SNAPRed workflows the fitted and applied term is `DIFC`. If this
 calibration is absent or wrong, peaks will broaden or map to incorrect d-values.
 
 **2. Normalization calibration (`normcal`)**
-Corrects the wavelength-dependent detector response. In practice this is
+Corrects the wavelength-dependent instrument response. In practice this is
 measured with vanadium (a null-scatterer), so users often call it the "vanadium
-correction." It primarily affects relative intensity and spectral shape, not the
+correction." It affects relative intensity and spectral shape, not the
 TOF-to-d mapping itself.
 
 **3. Post-reduction instrument-parameter calibration**
@@ -80,13 +92,12 @@ and the matching instrument parameter files are a **coupled deliverable**.
 ### SNAPRed calibration state and index
 
 Each calibration is associated with an instrument state. SNAPRed maintains a
-calibration index per state; each entry includes an `appliesTo` field defining
-the cycle-matching policy. The **default is cycle-strict**
+calibration index per state; each entry includes an `appliesTo` field defining scope of the calibration in terms of run number. In addition, a cycle-matching policy is applied (n.b. this is currently implemented in SNAPWrap, but will be migrated to SNAPRed). The **default is cycle-strict**
 (`requireSameCycle=True`): a calibration can exist for a state but still be
-invalid for the run if it is from a different cycle.
+invalid for the run if it is from a different cycle or out of the `appliesTo` scope.
 
 During reduction, SNAPRed checks the index for the current state and run number.
-If required calibrations are missing it either proceeds with an approximation
+If required valid calibrations are missing it either proceeds via user-specified alternate paths using suitable approximations
 (labelling output **`diagnostic`**) or aborts, depending on continue-flag
 settings.
 
@@ -104,10 +115,10 @@ SNAP uses two distinct mask types:
   calibration pixels). Calibration failures automatically generate a calibration
   mask; all applied pixel masks are written to the reduction record.
 - **binmask**: Excludes data ranges within pixels, specifiable in any unit (TOF,
-  wavelength, Q, or d-spacing). Useful for excluding a known artefact at a
+  wavelength, Q, or d-spacing). Useful for excluding a known artifact at a
   specific d-spacing while keeping the rest of the pixel's data.
 
-**SNAP-specific caveat**: pixel masks change effective detector coverage and
+**SNAP-specific caveat**: either mask type can change effective detector coverage and
 therefore profile/resolution behavior in focused spectra. Aggressive or
 run-specific masking may require instrument parameter file re-treatment.
 Current SNAP workflows handle this via calculated resolution-function pathways
@@ -136,8 +147,10 @@ in snapwrap; GSAS-II output is the primary production pathway.
 
 Use this skill when:
 
+- Generating or validating a `difcal` calibration in SNAPRed.
+- Generating or validating a `normcal` calibration in SNAPRed.
+- Generating or validating an instrument parameter file for Rietveld analysis.
 - Selecting or validating instrument calibrations before running SNAP reduction.
-- A reduction returns `diagnostic` output when `reduced` was expected.
 - Making grouping or masking decisions that may affect resolution or profile
   behavior.
 - Preparing reduced SNAP data for Rietveld analysis (instrument parameter file
@@ -156,6 +169,11 @@ Do **not** use this skill for:
 
 ### Required context before starting
 
+- Target workflow:
+  - `difcal` generation/validation,
+  - `normcal` generation/validation,
+  - reduction-time calibration validation/use, or
+  - instrument-parameter file production/validation.
 - Run numbers for the full calibration dataset (one `difcal` dataset, two
   `normcal` datasets per current workflow).
 - Instrument state ID tied to those run numbers.
@@ -165,81 +183,78 @@ Do **not** use this skill for:
 
 ---
 
-1. **Identify instrument state and run numbers** — Confirm the instrument state
-   ID for the run(s) to be reduced. Verify that the state ID is consistent
-   across calibration and sample runs. Record the state ID and run number range
-   in your reduction notes.
+1. **Select the workflow and define success criteria** — Choose exactly one
+   primary workflow for this execution and record what success means:
+   - A: `difcal` generation/validation
+   - B: `normcal` generation/validation
+   - C: reduction-time calibration validation/use
+   - D: instrument-parameter file production/validation
 
-2. **Confirm diffraction calibration (`difcal`) availability** — Check the
-   calibration index for an entry covering the current state and run number.
-   Verify that `appliesTo` matches the cycle of the run (default: cycle-strict).
-   If a calibration exists but is out-of-cycle and cross-cycle use is required,
-   set `requireSameCycle=False` and document the decision explicitly.
+2. **Identify instrument state and run scope** — Confirm instrument state ID,
+   run-number scope, and calibration version scope (`appliesTo`). Record
+   cycle-policy intent (`requireSameCycle` behavior) before execution.
+
+3. **Execute the selected workflow branch**
+
+   **A) `difcal` generation/validation (SNAPRed)**
+   - Run SNAPRed diffraction-calibration workflow for the target state/run set.
+   - Verify product creation and calibration-index insertion.
+   - Validate product quality against known calibrant peak positions/fit
+     behavior.
+   - Quantify number of pixels that failed calibration and are therefore masked in reduction. Compare with known bad pixels and historical failure rates.
+   - If product is invalid, record failure signature and rerun plan.
+
+   **[CHECKPOINT A]**: `difcal` exists, is indexed for intended applicability,
+   and passes basic product-quality checks.
+
+   **B) `normcal` generation/validation (SNAPRed)**
+   - Run SNAPRed normalization-calibration workflow for the target state/run
+     set.
+   - Verify product creation and calibration-index insertion.
+   - Validate wavelength-response behavior and normalization stability.
+   - If product is invalid, record failure signature and rerun plan.
+
+   **[CHECKPOINT B]**: `normcal` exists, is indexed for intended applicability,
+   and passes basic product-quality checks.
+
+   **C) Reduction-time calibration validation/use (SNAPWrap + SNAPRed)**
+   - Confirm `difcal` and `normcal` availability for state/run/cycle policy.
+   - Choose grouping and masking strategy; document rationale for each choice.
+   - Run reduction and verify output label:
+     - `reduced` -> both calibrations applied.
+     - `diagnostic` -> approximation pathway used; treat as exploratory only.
+   - If `diagnostic` was unexpected, investigate index entries, policy
+     settings, continue flags, and state ID consistency.
 
    > **Continue-flag behavior**: if `continueNoDifcal=False` (default) and
-   > `difcal` is absent, reduction **aborts** with no output workspaces.
+   > `difcal` is absent, reduction aborts; if `continueNoVan=False` and
+   > `noNorm=False` and `normcal` is absent, reduction aborts.
 
-   **[CHECKPOINT]**: A valid `difcal` entry exists in the calibration index for
-   the target state and cycle, or a cross-cycle exception is explicitly
-   documented.
+   **[CHECKPOINT C]**: Output state is understood and documented (`reduced`,
+   intentional `diagnostic`, or expected abort with missing calibration and
+   continue flags unset).
 
-3. **Confirm normalization calibration (`normcal`) availability** — Check that
-   the vanadium-based normalization calibration exists for the target state.
-   Apply the same cycle-matching check as for `difcal`.
+   **D) Instrument-parameter file production/validation**
+   - Confirm the file matches the chosen grouping and mask configuration.
+   - If missing, generate from appropriate `difcal` silicon calibrant data.
+   - Validate profile/resolution behavior for intended analysis code (GSAS-II,
+     TOPAS, etc.).
+   - Record linkage between reduced dataset and instrument-parameter file.
 
-   > **Continue-flag behavior**: if `continueNoVan=False` (default) and
-   > `noNorm=False` and `normcal` is absent, reduction **aborts**.
+   **[CHECKPOINT D]**: Matching instrument-parameter file exists (or is
+   generated) and is validated for intended grouping/masking/analysis code.
 
-   **[CHECKPOINT]**: A valid `normcal` entry exists for the target state and
-   cycle, or a cross-cycle exception is explicitly documented.
+4. **Record workflow provenance and decisions** — Document: workflow selected,
+   state ID, run scope, calibration version identifiers, cycle-policy settings
+   and overrides, grouping/masking choices (if applicable), output label or
+   abort state (if applicable), and instrument-parameter linkage (if
+   applicable).
 
-4. **Choose and document the grouping scheme** — Select a built-in or custom
-   pixel grouping. Record why the chosen grouping matches the science question
-   (for example, column vs. bank vs. custom grouping for high-pressure vs.
-   ambient measurements). Note that changing grouping after reduction may
-   require reprocessing: the grouping choice is coupled to the instrument
-   parameter file.
-
-5. **Apply and document detector masks** — Apply pixelmasks and binmasks. For
-   each mask, record the scientific rationale (bad detector, artefact exclusion,
-   etc.). Note any calibration-failure-triggered masks from the calibration
-   workflow. Assess whether the cumulative masked coverage changes the effective
-   resolution enough to require run-specific instrument parameter treatment.
-
-   **[CHECKPOINT]**: All masks are applied and every mask has a documented
-   rationale. Masking-resolution coupling impact has been assessed.
-
-6. **Run reduction and verify output quality label** — Execute the reduction
-   workflow. Inspect the output workspace label:
-   - `reduced` → both calibrations applied; output is suitable for analysis.
-   - `diagnostic` → approximations were used; treat as exploratory only and
-     return to steps 2–3 to resolve missing calibrations before final output.
-
-   If `diagnostic` was unexpected, check: calibration index entries, `appliesTo`
-   cycle policy, continue-flag settings, and instrument state ID consistency.
-
-   **[CHECKPOINT]**: Output label is `reduced`. If `diagnostic`, the cause is
-   identified and a remediation path (obtain missing calibration and rerun) is
-   documented.
-
-7. **Confirm instrument parameter file if Rietveld analysis is planned** —
-   Verify that an instrument parameter file matching the chosen grouping scheme
-   and pixel mask configuration exists. If it does not, generate it from the
-   `difcal` silicon calibrant data before proceeding to Rietveld refinement.
-   Reduced data and instrument parameter files are a coupled deliverable: do
-   not analyse reduced data with an instrument parameter file built from a
-   different grouping or masking configuration.
-
-8. **Record all calibration metadata** — Document: instrument state ID, `difcal`
-   and `normcal` version identifiers, grouping scheme used, masks applied (with
-   rationale), cycle policy setting and any overrides, output quality label, and
-   whether an instrument parameter file was generated or reused.
-
-**Exit criteria**: Reduction output label is `reduced`. Both `difcal` and
-`normcal` calibrations are confirmed valid for the target state and cycle.
-Grouping and masking choices are documented. If Rietveld analysis is planned,
-a matching instrument parameter file exists. All calibration metadata is
-recorded.
+**Exit criteria**: The selected workflow's checkpoint is satisfied, and
+workflow-specific provenance is fully recorded. For reduction-time use (workflow
+C), output state is explicitly documented as `reduced`, intentional
+`diagnostic`, or expected abort. For instrument-parameter workflow (D), matching
+file linkage to data/grouping/masking is explicit.
 
 ---
 
@@ -277,23 +292,22 @@ recorded.
 
 ## Verification
 
-- [ ] Instrument state ID is confirmed and consistent across calibration and
-      sample runs.
-- [ ] A valid `difcal` entry exists in the calibration index for the target
-      state and cycle; cycle policy recorded.
-- [ ] A valid `normcal` entry exists for the target state and cycle; cycle
-      policy recorded.
-- [ ] If cross-cycle calibration is used, `requireSameCycle=False` is set and
-      the decision is documented.
-- [ ] Grouping scheme is chosen and the scientific rationale is recorded.
-- [ ] All detector masks (pixelmask and binmask) are applied and every mask has
-      a documented rationale.
-- [ ] Masking-resolution coupling impact has been assessed; run-specific
-      instrument parameter treatment flagged if needed.
-- [ ] Reduction output label is `reduced` (not `diagnostic`).
-- [ ] If `diagnostic` was returned, the cause is identified and a remediation
-      path is recorded.
-- [ ] Calibration version identifiers (`difcal` and `normcal`) are recorded in
-      reduction logs.
-- [ ] If Rietveld analysis is planned, a matching instrument parameter file
-      (correct grouping and mask configuration) is confirmed or generated.
+- [ ] Workflow type is explicitly recorded (A `difcal`, B `normcal`,
+  C reduction-time use, or D instrument-parameter file).
+- [ ] Instrument state ID and run scope are confirmed and recorded.
+- [ ] Cycle-policy decision is recorded (`requireSameCycle` behavior and any
+  overrides).
+- [ ] If workflow A (`difcal`): generated product exists, is indexed correctly,
+  and passes basic calibrant-position/fit checks.
+- [ ] If workflow B (`normcal`): generated product exists, is indexed correctly,
+  and passes expected wavelength-response checks.
+- [ ] If workflow C (reduction-time use): valid `difcal` and `normcal`
+  availability is confirmed for state/run/cycle policy.
+- [ ] If workflow C: grouping and masking choices are documented with rationale;
+  masking-resolution coupling impact is assessed.
+- [ ] If workflow C: output state is documented as `reduced`, intentional
+  `diagnostic`, or expected abort with missing calibration and continue
+  flags unset.
+- [ ] If workflow D (instrument-parameter file): matching file for intended
+  grouping/mask/analysis code is confirmed or generated.
+- [ ] Calibration/version provenance is recorded for the selected workflow.

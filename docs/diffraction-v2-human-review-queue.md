@@ -24,9 +24,9 @@ Review policy for this queue:
 
 | Skill | Status | Reviewed on | Commit | Tag | Notes |
 |---|---|---|---|---|---|
-| sns-snap-reduction-workflow-overview | pending |  |  |  |  |
-| sns-snap-reduction-diagnostics | pending |  |  |  |  |
-| sns-snap-calibration-and-geometry | pending |  |  |  |  |
+| sns-snap-reduction-workflow-overview | completed | 2026-05-05 | 72025a0 | review/sns-snap-reduction-workflow-overview-v2 | v2 human review approved |
+| sns-snap-reduction-diagnostics | completed | 2026-05-05 | 7762b9e | review/sns-snap-reduction-diagnostics-v2 | v2 human review approved |
+| sns-snap-calibration-and-geometry | completed | Malcolm Guthrie | 2026-05-05 | review/sns-snap-calibration-and-geometry-v2 | expanded to 4 workflow branches A–D |
 | sns-snap-sample-environment-reduction-special-cases | pending |  |  |  |  |
 | sns-snap-high-pressure-data-interpretation | pending |  |  |  |  |
 | sns-snapred-developer-guide | pending |  |  |  |  |
