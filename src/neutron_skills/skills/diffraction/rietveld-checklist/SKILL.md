@@ -7,15 +7,16 @@ description: >
   chi-squared).
 version: 2
 review:
-  status: human-reviewed
-  reviewer: Malcolm Guthrie
-  reviewed_on: 2026-05-05
-  basis: [docs, instrument-science-review]
+  status: pending
+  reviewer: null
+  reviewed_on: null
+  basis: []
   notes: >
-    v2: reviewed and approved as the general diffraction Rietveld checklist.
-    Preserved release-order and fit-quality guidance with software-specific
-    metric cautions and high-pressure cross-references.
-  approved_commit: review/rietveld-checklist-v2
+    v2: domain content reviewed and expanded by Malcolm Guthrie (2026-05-04),
+    then restructured to required skill anatomy (Overview / When to Use /
+    Process / Rationalizations / Red Flags / Verification). Awaiting
+    instrument-scientist sign-off on final form.
+  approved_commit: null
 metadata:
   techniques: [diffraction, powder-diffraction, rietveld]
   tags: [refinement, analysis, fit-quality]
