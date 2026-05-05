@@ -7,15 +7,16 @@ description: >
   diffraction data.
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-05
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). All prior content
-    preserved; no domain changes. Awaiting instrument-scientist sign-off.
-  approved_commit: null
+    Reviewed and approved for v2 publication. Confirmed workflow updates:
+    clarified lite-mode definition, added hook-aware scope/provenance language,
+    split SEE handling into explicit pre-reduce and post-reduce gates, and
+    expanded verification/provenance checks for SEE-dependent decisions.
+  approved_commit: review/sns-snap-reduction-workflow-overview-v2
   prior_review:
     status: human-reviewed
     reviewer: Malcolm Guthrie
@@ -29,7 +30,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [snapwrap, snapred, Mantid]
   data_phase: reduction
   techniques: [diffraction, powder-diffraction, time-of-flight, data-reduction]
@@ -83,17 +84,17 @@ downstream analysis.
 **Software provenance:**
 - **snapwrap** (user interface — first): users call reduction and export workflows
   by run number; user-visible choices include grouping scheme, masking inputs,
-  output formats, and continue flags.
-- **snapred** (backend): resolves state-dependent calibration context; missing
-  calibration triggers approximation pathways and labels outputs `diagnostic`.
+  output formats, and continue flags; workflow customizations in the form of hooks passed to snapred.
+- **snapred** (backend): facilitates reduction workflow,resolves state-dependent calibration context; missing
+  calibration triggers approximation pathways and labels outputs `diagnostic`. Accepts instructions to customize workflows via hook calls from snapwrap. 
 - **Mantid** (framework): executes calibration, focusing, unit conversion,
   masking, and normalization algorithms orchestrated by snapred.
 
 **SNAP-specific conventions:**
-- Lite mode is default; native mode is expert/special-case.
+- Lite mode (downsampling of pixels to 8 x 8 arrays of native pixels)is default; native mode is expert/special-case.
 - Grouping is fully general: 3 built-in defaults (all, bank, column) plus custom schemes.
-- Both mask types are first-class: pixelmask (exclude pixels) and binmask
-  (exclude bin ranges in any unit: TOF, wavelength, Q, d-spacing).
+- Both mask types are first-class: pixelmask (exclude entire pixels) and binmask
+  (exclude bin ranges define in any unit: TOF, wavelength, Q, d-spacing within a pixel).
 - Output labels communicate calibration completeness: `reduced_` = full
   calibration applied; `diagnostic_` = approximation used.
 
@@ -117,8 +118,9 @@ downstream analysis.
 
 Collect this context before starting:
 - Run numbers and experiment mode.
-- Sample environment assembly type (`assembly.pe`, `assembly.dac`, cylinder,
+- Sample environment equipment (SEE) assembly type (`assembly.pe`, `assembly.dac`, cylinder,
   or none) from SEEMeta or documentation.
+- Where required for SEE type, identify specified customization of workflows (e.g. via hooks or post processing) and acquire necessary artifacts (e.g. pixel masks, wavelength notches) that these require. 
 - Target output format (`gsa`, `xye`, `csv`).
 - Whether cycle-strict calibration matching must remain enabled (`requireSameCycle`).
 - Any known run exclusions or masking requirements.
@@ -146,11 +148,21 @@ Collect this context before starting:
    for the experiment. Identify and document any pixelmasks or binmasks
    required. Record the scientific rationale for each choice.
 
-4. **Handle sample-environment special cases** — If a high-pressure device is
-   present, branch to
+4. **Handle sample-environment special cases (pre-reduce)** — If a high-pressure
+   device is present, branch to
    [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md)
-   to build environment-specific masks and attenuation inputs before
-   proceeding. Return here after that skill's exit criteria are met.
+   to build all environment-specific inputs. Return here only when that skill's
+   exit criteria are met.
+
+   **[CHECKPOINT before step 5]**: The following are confirmed ready before
+   `reduce()` is called:
+   - Assembly type is confirmed from `SEEMeta` or documentation.
+   - All required mask objects are constructed and named with correct unit
+     suffixes (pixel mask and/or `binMaskList` items as required by device class).
+   - Any attenuation or background workspace required by the device class is
+     prepared and named.
+   - Post-reduce processing obligations for this device class are noted
+     (see step 6).
 
 5. **Run reduction** — Call `snapwrap.utils.reduce(runNumber, ...)` with the
    confirmed calibration policy, grouping, and mask inputs. Check the output
@@ -161,19 +173,27 @@ Collect this context before starting:
    expected prefix and pixel-group suffixes. Any `diagnostic` output has an
    explicit documented reason.
 
-6. **Perform background handling and normalization checks** — Inspect reduced
-   spectra for normalization stability across detector groups. Compare
-   baseline behavior against a reference or prior cycle. Flag anomalies for
-   the diagnostics skill.
+6. **Handle sample-environment post-reduce processing, then perform background
+   and normalization checks** — If a high-pressure device was present, consult
+   [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md)
+   for any required post-reduce steps (for example, manual background
+   extraction and subtraction for DAC data, or cylinder-cell container
+   treatment). Complete those steps before the normalization check below.
+
+   Then inspect reduced spectra for normalization stability across detector
+   groups. Compare baseline behavior against a reference or prior cycle.
+   Flag anomalies for the diagnostics skill.
 
 7. **Export for downstream analysis** — Convert and export to the required
    format (`gsa`, `xye`, `csv`) using `snapwrap.io.exportData()`. Confirm
    exported files exist on disk and are non-empty.
 
-8. **Capture diagnostics and provenance** — Record in analysis notes: run
-   numbers, calibration identifiers and versions, grouping/masking rationale,
-   software versions, continue flags used (if any), and output label with
-   justification.
+8. **Capture diagnostics and provenance** — Record in the reduction record
+  (analysis notes and/or run log): run numbers, calibration identifiers and
+  versions, grouping/masking rationale, SEE assembly type, SEE pre-reduce
+  inputs (for example masks, notches, attenuation/background workspaces),
+  SEE post-reduce handling performed (if any), software versions, continue
+  flags used (if any), and output label with justification.
 
 **Exit criteria**: Reduced outputs are labelled correctly, exported files
 exist, and provenance is recorded. If output is `diagnostic`, its intended
@@ -186,7 +206,7 @@ stated.
 
 | Rationalization | Why it is wrong |
 |-----------------|-----------------|
-| "The calibration is probably fine — it worked last cycle." | Cycle-strict matching (`requireSameCycle=True`) exists because detector state changes between cycles. An out-of-cycle calibration produces no warning; it silently maps TOF to wrong d values. Always run `checkCalibrationStatus()`. |
+| "The calibration is probably fine — it worked last cycle." | Cycle-strict matching (`requireSameCycle=True`) exists because of instrumental drift between cycles. An out-of-cycle calibration produces no warning; it silently maps TOF to wrong d values. Always run `checkCalibrationStatus()`. |
 | "The output says `diagnostic_` but the peaks look reasonable, so I'll use it for final results." | `diagnostic_` means an approximation pathway was used. Publishing these as final results misrepresents the data provenance. Use diagnostic outputs for exploratory decisions only, then recalibrate and rerun. |
 | "I'll document the masking choices after the analysis." | Undocumented mask rationale cannot be reproduced and cannot be reviewed. Write it down at step 3 and step 8, before the script runs. |
 | "Native mode gives more pixels so it must be better." | Native mode is 64× more expensive and intended for special cases only. Lite mode matches the instrument's diffraction resolution. Using native mode routinely wastes compute and can destabilize calibration fits. |
@@ -196,9 +216,10 @@ stated.
 
 ## Red Flags
 
-- Output workspace prefix is `diagnostic_` but no continue flag was
-  intentionally set → calibration lookup failed silently; re-examine state ID
-  and calibration index. Revisit step 2.
+- Reduction aborts with missing calibration while continue flags are unset
+  (default) → expected behavior. Check logs for `ContinueWarning` and revisit
+  step 2 to resolve calibration availability or intentionally enable a
+  continue pathway.
 - No output workspaces appear in the Mantid tree after `reduce()` completes →
   reduction aborted (likely missing calibration with continue flags at
   default `False`). Check logs for `ContinueWarning`. Revisit step 2.
@@ -221,11 +242,13 @@ Before marking this skill complete:
       result recorded.
 - [ ] Output workspace prefix matches expectation: `reduced_` for full
       calibration, `diagnostic_` only when intentionally accepted.
-- [ ] Grouping scheme and mask choices recorded with scientific rationale in
-      analysis notes.
+- [ ] Grouping, masking, and SEE-specific choices (assembly type, pre-reduce
+  inputs, and any post-reduce handling) are recorded with scientific
+  rationale in the reduction record (analysis notes and/or run log).
 - [ ] Exported files exist on disk in the target format and are non-empty.
-- [ ] Analysis notes include: run numbers, calibration identifiers + versions,
-      software versions, any continue flags used, and output label with
-      justification.
+- [ ] Reduction record (analysis notes and/or run log) includes: run numbers,
+      calibration identifiers + versions, software versions, any continue
+      flags used, output label with justification, and any SEE-dependent
+      decisions/handling that affected the reduction result.
 - [ ] If output is `diagnostic_`: explicit statement of whether it is for
       exploratory use only or will be superseded by a `reduced_` rerun.
