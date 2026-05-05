@@ -7,16 +7,16 @@ description: >
   environment-specific masking, notching, or background handling.
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-05
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). Prior reviewed
-    technical content preserved and reorganized. Awaiting instrument-scientist
-    sign-off.
-  approved_commit: null
+    v2: preserved core PE/DAC/cylinder technical content and updated process
+    sequencing so branch-support artifacts are gathered within the branch step
+    before execution. Explicitly called out artifact acquisition/generation for
+    PE pixel masks and DAC wavelength-notch bin masks.
+  approved_commit: review/sns-snap-sample-environment-reduction-special-cases-v2
   prior_review:
     status: human-reviewed
     reviewer: Malcolm Guthrie
@@ -34,7 +34,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [snapwrap, snapred, Mantid]
   data_phase: reduction
   techniques: [diffraction, powder-diffraction, time-of-flight, high-pressure]
@@ -143,18 +143,23 @@ Do **not** use this skill when:
    and keep its calibration and output-label logic intact. This skill only adds
    the environment-specific branches.
 
-3. **Prepare the environment-specific mask strategy in snapwrap** — Use the
-   snapwrap masking layer as the integration point.
+3. **Apply the correct environment branch and gather branch-support artifacts**
+  — Use the branch that matches the identified device class, and assemble all
+  required reduction inputs before execution.
 
-   | Component | Role |
-   |-----------|------|
-   | `snapwrap.maskUtils.swissCheese` | Manages combined pixel and bin mask objects and can construct masks from UB matrix pairs or workspace history. |
-   | `reduce(..., binMaskList=...)` | Accepts one or more bin masks in TOF, wavelength, Q, or d-spacing. |
-   | `reduce(..., pixelMask=...)` | Accepts a pixel mask for environment occlusion. |
-   | Reduction hooks | Passes environment-specific parameters into snapred orchestration. |
+  Branch-support artifacts can include masks, correction workspaces, and
+  background references. Use the snapwrap masking layer as the primary
+  integration point for mask objects, and prepare any additional branch-specific
+  inputs needed by the reduction call.
 
-4. **Apply the correct environment branch** — Use the branch that matches the
-   identified device class.
+  | Artifact/component | Role |
+  |--------------------|------|
+  | `snapwrap.maskUtils.swissCheese` | Manages combined pixel and bin mask objects and can construct masks in several ways (including from diamond UB matrix pairs or workspace history). |
+  | `reduce(..., binMaskList=...)` | Accepts one or more bin masks in TOF, wavelength, Q, or d-spacing. |
+  | `reduce(..., pixelMask=...)` | Accepts a pixel mask for environment occlusion. |
+  | Attenuation correction workspace | Encodes wavelength-dependent attenuation behavior when branch physics requires correction (for example cylinder-cell workflows). |
+  | Empty-cell/background workspace | Supplies environment/container background subtraction inputs when valid for the pressure state. |
+  | Reduction hooks | Passes environment-specific parameters into snapred orchestration. |
 
    ### Paris-Edinburgh (PE) branch
 
@@ -178,7 +183,9 @@ Do **not** use this skill when:
 
    Required actions:
 
-   - Apply a PE-specific pixel mask for occluded or contaminated detector
+   - Acquire or generate a PE-specific pixel-mask artifact that matches the
+     current geometry and pressure-cell configuration.
+   - Apply that PE-specific pixel mask for occluded or contaminated detector
      regions.
    - Treat the TiZr gasket as a smooth background contributor.
    - If sharp background structure appears, verify anvil material assignment.
@@ -213,7 +220,10 @@ Do **not** use this skill when:
 
    Primary mitigation:
 
-   - Use wavelength notching as the first-line correction.
+   - Acquire or generate a wavelength-notch bin-mask artifact for the current
+     DAC geometry/orientation state.
+   - Use wavelength notching with that bin-mask artifact as the first-line
+     correction.
    - Confirm the chosen grouping preserves acceptable d-range after notch
      removal.
    - Confirm the downstream analysis code can tolerate nonuniform wavelength
@@ -222,10 +232,11 @@ Do **not** use this skill when:
    Notch-generation pathways:
 
    - **Transmission inspection**: identify notch wavelengths from dips in the
-     transmitted beam spectrum.
+     transmitted beam spectrum and construct the corresponding notch bin-mask
+     artifact.
    - **UB matrix calculation**: fit the orientation of both diamonds and use
-     `snapwrap.maskUtils.swissCheese` to calculate notch masks from the diamond
-     UB matrices.
+     `snapwrap.maskUtils.swissCheese` to calculate notch bin-mask artifacts
+     from the diamond UB matrices.
 
    Supplementary action:
 
@@ -277,12 +288,14 @@ Do **not** use this skill when:
    - Cylinder-cell scattering may remain in reduced data and must be handled in
      analysis with explicit container/background terms.
 
-5. **Run reduction with the prepared masks and note the limitations** — Pass
-   pixel masks and/or `binMaskList` into `reduce`, record why each mask exists,
-   and explicitly write down anything the current workflow does not correct
-   (for example unimplemented attenuation treatment or manual notch bounds).
+4. **Run reduction with the prepared branch artifacts and note the limitations**
+  — Pass the selected branch input artifacts into `reduce` (for example pixel masks,
+  and branch-specific correction/background workspaces), record
+  why each artifact exists, and explicitly write down anything the current
+  workflow does not correct (for example unimplemented attenuation treatment or
+  manual notch bounds).
 
-6. **Check quality gates before accepting the output** — Confirm:
+5. **Check quality gates before accepting the output** — Confirm:
 
    - Pixel masks cover all occluded or contaminated detector regions.
    - For DAC data, notch positions are confirmed against UB matrices or observed
@@ -294,14 +307,15 @@ Do **not** use this skill when:
    - GSAS-II compatibility is confirmed before attempting quantitative analysis
      of notched DAC data.
 
-7. **Hand off explicit analysis-stage warnings** — Record what artifacts may
+6. **Hand off explicit analysis-stage warnings** — Record what artifacts may
    remain after reduction so the analysis stage does not treat them as sample
    signal by mistake.
 
 **Exit criteria**: The reduction sequence is adapted to the identified sample
-environment, required masks are constructed and supplied to `reduce`, mask and
-background choices are documented, unresolved corrections are recorded, and
-post-reduction analysis warnings are explicitly handed off.
+environment, required branch-support artifacts are prepared and supplied to
+`reduce`, mask/correction/background choices are documented, unresolved
+corrections are recorded, and post-reduction analysis warnings are explicitly
+handed off.
 
 ---
 
@@ -327,7 +341,7 @@ post-reduction analysis warnings are explicitly handed off.
   remaining coverage is acceptable for the chosen grouping.
 - Residual DAC background at diamond d-spacings after notching: UB matrices or
   manual mask extent may be wrong.
-- Unexpected profile broadening when analyzing notched DAC data outside GSAS-II:
+- Unexpected profile mismatch when analyzing notched DAC data outside GSAS-II:
   downstream resolution modeling is likely invalid.
 - Structured residuals at cylinder material d-spacings: container background or
   Bragg-edge attenuation correction is inadequate.
@@ -343,13 +357,16 @@ post-reduction analysis warnings are explicitly handed off.
       manual source.
 - [ ] The baseline reduction workflow was used and only environment-specific
       branches were altered.
-- [ ] Required pixel masks and/or bin masks are constructed and passed to
-      `reduce`.
-- [ ] Every mask has a recorded rationale and unit convention.
+- [ ] Required branch-support artifacts are prepared and passed to `reduce`
+  (for example pixel masks, bin masks, attenuation corrections, and
+  background references as applicable).
+- [ ] Every prepared artifact has a recorded rationale and unit convention or
+  usage basis.
 - [ ] PE runs: pixel-occlusion handling is applied and any missing attenuation
       treatment is called out explicitly.
-- [ ] DAC runs: notch positions are confirmed from transmission dips or diamond
-      UB matrices, and d-range coverage after notching is acceptable.
+- [ ] DAC runs: the notch bin-mask artifact is acquired/generated from
+  transmission dips or diamond UB matrices, and d-range coverage after
+  notching is acceptable.
 - [ ] Cylinder runs: attenuation correction and background strategy are justified
       for the current pressure state.
 - [ ] Output label (`reduced` or `diagnostic`) is explained by calibration state,
