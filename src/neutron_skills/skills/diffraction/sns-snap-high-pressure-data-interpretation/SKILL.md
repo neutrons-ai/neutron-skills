@@ -9,16 +9,16 @@ description: >
   signal statistics, background, and cell-component Bragg scattering.
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-05
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). Prior reviewed
-    technical content preserved and reorganized. Awaiting instrument-scientist
-    sign-off.
-  approved_commit: null
+    v2: preserved high-pressure interpretation guidance while cleaning a
+    formatting corruption before Overview and aligning metadata conventions
+    (SNAP-only instrument list). Content reviewed and approved for human-review
+    v2 release.
+  approved_commit: review/sns-snap-high-pressure-data-interpretation-v2
   prior_review:
     status: human-reviewed
     reviewer: Malcolm Guthrie
@@ -37,7 +37,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [GSAS-II, FullProf, Mantid]
   data_phase: analysis
   techniques: [diffraction, powder-diffraction, time-of-flight, high-pressure]
@@ -60,11 +60,6 @@ metadata:
 
 # SNAP High-Pressure Data Interpretation
 
-even disrupted under pressure and any rigid body constraints based on ambient models may need to be relaxed.
-different scattering angles relative to the load axis. SNAP's multi-angle
-detector coverage makes it possible to **resolve this angular dependence** by
-development. Use available broadening models as approximations, and note their
-diamond Bragg reflections produces a complex, highly structured background that
 ## Overview
 
 Use this skill at the **analysis stage** after reduction is complete and you
@@ -194,7 +189,7 @@ Do **not** use this skill when:
    intensity-trustworthy or position/profile-only.
 
 5. **Assess strain with the grouping scheme in mind** — High-pressure strain
-   gradients usually appear as peak broadening, and under uniaxial load they are
+   gradients usually appear as peak broadening and shifting and, under uniaxial load, they are typically
    angle-dependent.
 
    Required actions:
