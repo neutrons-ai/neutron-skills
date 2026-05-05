@@ -7,16 +7,15 @@ description: >
   masking utilities, or building tooling that consumes the SNAPWrap API.
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-05
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). Prior reviewed
-    technical content preserved and reorganized. Awaiting instrument-scientist
-    sign-off.
-  approved_commit: null
+    v2: reviewed and approved for developer-facing accuracy and flow. Preserved
+    module and hook guidance, validated architecture boundaries, and aligned
+    metadata conventions with SNAP-only instrument listing.
+  approved_commit: review/sns-snapwrap-developer-guide-v2
   prior_review:
     status: human-reviewed
     reviewer: Malcolm Guthrie
@@ -27,7 +26,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [snapwrap, snapred, Mantid]
   data_phase: reduction
   techniques: [diffraction, powder-diffraction, time-of-flight]
