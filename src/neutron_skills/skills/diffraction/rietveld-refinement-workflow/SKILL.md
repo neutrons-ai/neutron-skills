@@ -1,5 +1,5 @@
 ---
-name: rietveld-checklist
+name: rietveld-refinement-workflow
 description: >
   Sanity-check a Rietveld refinement of neutron powder-diffraction data.
   Use when reviewing refinement strategy, diagnosing poor fit, setting
@@ -22,7 +22,7 @@ metadata:
   tags: [refinement, analysis, fit-quality]
 ---
 
-# Rietveld Refinement Checklist
+# Rietveld Refinement Workflow
 
 This skill guides an agent through a safe, incremental Rietveld refinement
 of neutron powder-diffraction data: from data and model setup through

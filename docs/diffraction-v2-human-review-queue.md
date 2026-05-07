@@ -18,7 +18,7 @@ Review policy for this queue:
 5. `sns-snap-high-pressure-data-interpretation`
 6. `sns-snapred-developer-guide`
 7. `sns-snapwrap-developer-guide`
-8. `rietveld-checklist`
+8. `rietveld-refinement-workflow`
 
 ## Tracking table
 
@@ -30,8 +30,8 @@ Review policy for this queue:
 | sns-snap-sample-environment-reduction-special-cases | completed | 2026-05-05 | 4aef3b6 | review/sns-snap-sample-environment-reduction-special-cases-v2 | v2 human review approved; artifact-gathering flow clarified |
 | sns-snap-high-pressure-data-interpretation | completed | 2026-05-05 |  | review/sns-snap-high-pressure-data-interpretation-v2 | v2 human review approved |
 | sns-snapred-developer-guide | pending |  |  |  |  |
-| sns-snapwrap-developer-guide | completed | 2026-05-07 | — | review/sns-snapwrap-developer-guide-v2 | v2 technical accuracy: cleanTheTree, bin-mask naming, config layer, hook lifecycle |
-| rietveld-checklist | pending |  |  |  |  |
+| sns-snapwrap-developer-guide | completed | 2026-05-07 | e036451 | review/sns-snapwrap-developer-guide-v2 | v2 technical accuracy: cleanTheTree, bin-mask naming, config layer, hook lifecycle |
+| rietveld-refinement-workflow | pending |  |  |  |  |
 
 ## Per-skill review sequence
 
