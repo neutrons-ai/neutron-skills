@@ -7,16 +7,20 @@ description: >
   masking utilities, or building tooling that consumes the SNAPWrap API.
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-07
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). Prior reviewed
-    technical content preserved and reorganized. Awaiting instrument-scientist
-    sign-off.
-  approved_commit: null
+    v2: Developer guidance with technical accuracy corrections for cleanTheTree
+    behavior (actual copies, not aliases; timestamped originals retained in
+    tree), bin-mask naming contract (strictly {prefix}-{units} format with full
+    Mantid unit names), artifact responsibility boundaries (when/why in
+    special-cases skill, how in snapwrap), and SNAPWrap vs SNAPRed config layer
+    separation (SNAPWrap has own application.yml; queries SNAPRed through
+    interface; no YAML override support in SNAPWrap). Hook lifecycle names
+    clarified and referenced to sns-snapred-developer-guide.
+  approved_commit: review/sns-snapwrap-developer-guide-v2
   prior_review:
     status: human-reviewed
     reviewer: Malcolm Guthrie
@@ -27,7 +31,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [snapwrap, snapred, Mantid]
   data_phase: reduction
   techniques: [diffraction, powder-diffraction, time-of-flight]
@@ -162,16 +166,18 @@ Do **not** use this skill when:
    changing.
 
 3. **Handle output names through SNAPWrap helpers instead of string guessing**
-   — SNAPRed workspace names are timestamped internally, while SNAPWrap usually
-   shows clean-tree aliases without timestamps.
+   — SNAPRed workspace names are timestamped internally. When `cleanTheTree` is
+   enabled, SNAPWrap creates copies with clean names (no timestamps) and hides
+   the originals, but the timestamped workspaces remain in the tree and can be
+   re-exposed if needed.
 
-   Naming pattern:
+   Timestamped internal naming pattern:
 
    ```text
    {prefix}_{unit}_{pixelGroup}_{runNumber}_{timestamp}
    ```
 
-   Default displayed pattern when `cleanTheTree` is enabled:
+   Clean-tree displayed pattern when `cleanTheTree` is enabled:
 
    ```text
    {prefix}_{unit}_{pixelGroup}_{runNumber}
@@ -186,26 +192,33 @@ Do **not** use this skill when:
 
 4. **Use `binMaskList` and `swissCheese` through the naming contract** — Bin
    masks are table workspaces applied by the `cheeseMask` hook during
-   `PostPreprocessReductionRecipe`.
+   `PostPreprocessReductionRecipe`. Masks are reduction artifacts governed by
+   [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md).
 
-   Required rules:
+   Required naming format:
 
-   - Mask workspace names must encode units correctly in the form
-     `{prefix}_{units}`.
-   - Unit suffixes must match Mantid unit naming exactly, such as `Wavelength`
-     or `dSpacing`.
+   - Workspace names must follow exactly: `{prefix}-{units}`
+   - Two parts only, separated by a single hyphen.
+   - The part after the hyphen must be the Mantid unit name (`Wavelength`, 
+     `dSpacing`, `TOF`, `Energy`, etc.).
+   - Nothing can follow the units; the units must be the final part.
+   - Unit suffixes must match Mantid unit naming exactly (no abbreviations like 
+     `wav` or `dsp`).
    - Multiple masks in different units can be supplied in one `binMaskList`.
 
    Typical usage:
 
    ```python
-   reduce(runNumber, binMaskList=['mask_dsp_DAC_forbidden_range', 'mask_wav_notch_diamond'])
+   reduce(runNumber, binMaskList=['DAC_notch-Wavelength', 'PE_occlusion-dSpacing'])
    ```
 
-   Common workflows:
+   SNAPWrap code for artifact construction (see
+   [sns-snap-sample-environment-reduction-special-cases](../sns-snap-sample-environment-reduction-special-cases/SKILL.md)
+   for when and why to create each artifact type):
 
-   - Build DAC notch masks from diamond UB matrices with `snapwrap.maskUtils`.
-   - Extract manual bin masks from workspace history with
+   - DAC notch bin-mask artifacts: use `snapwrap.maskUtils` with diamond UB
+     matrices.
+   - Manual bin-mask artifacts extracted from workspace history: use
      `swissCheese.ExtractFromWorkspaceHistory(...)`.
 
 5. **Resolve calibration state through `snapStateMgr`, not hardcoded paths**
@@ -249,14 +262,16 @@ Do **not** use this skill when:
 
 7. **Attach custom behavior through hooks only at valid SNAPRed lifecycle
    points** — SNAPWrap passes `Hook` objects into `SNAPRequest`, and SNAPRed's
-   `HookManager` executes them.
+   `HookManager` executes them. Lifecycle names are recipe steps in SNAPRed's
+   reduction engine (e.g., `PostPreprocessReductionRecipe`).
 
    Built-in hooks assembled by `reduce()`:
 
    - `BackgroundAttenuationCorrection`
    - `cheeseMask`
 
-   If you add new hooks, verify the lifecycle name against SNAPRed and remember
+   If you add new hooks, verify the lifecycle name against SNAPRed's recipe
+   lifecycle documentation (see `sns-snapred-developer-guide`) and remember
    that all registered hooks must execute successfully.
 
 8. **Use the module surface intentionally** — Reach for the right module rather
@@ -273,18 +288,22 @@ Do **not** use this skill when:
    | `snapwrap.cycleDates` | `get_cycle_for_run()` | Cycle-aware logic |
    | `snapwrap.wrapConfig` | `WrapConfig` | Runtime config loading |
 
-9. **Load configuration through the YAML config layer** — SNAPWrap uses
-   `application.yml` with optional overrides.
+9. **Load configuration through the YAML config layer** — SNAPWrap uses its
+   own `application.yml` for runtime configuration. For access to SNAPRed
+   configuration (such as `instrument.calibration.home`), SNAPWrap queries
+   SNAPRed's `application.yml` through the SNAPRed interface.
 
    ```python
    from snapwrap.wrapConfig import WrapConfig
    WrapConfig.load()
-   value = WrapConfig.get("instrument.calibration.home")
+   # SNAPWrap-level config example
+   seeJsonHome = WrapConfig.get("SEE.json.home")
    ```
 
-   For local testing outside the SNS Analysis Cluster, use an override file.
-   Default reduction parameters live in `defaultRedConfig.yml` and are used when
-   `YMLOverride='none'`.
+   For local testing outside the SNS Analysis Cluster, SNAPWrap relies on
+   environment setup or direct file paths; SNAPWrap config does not support
+   YAML override files (SNAPRed config does). Check SNAPWrap documentation for
+   local development setup options.
 
 **Exit criteria**: You can explain how a SNAPWrap script flows through
 `reduce()`, where calibration and sample-environment decisions are injected,
@@ -313,7 +332,7 @@ belong to SNAPWrap versus SNAPRed.
 - `binMaskList` masks have ambiguous or non-Mantid unit suffixes.
 - Calibration file paths are hardcoded instead of resolved via
   `checkCalibrationStatus()` or the SNAPRed data layer.
-- Hooks are attached to lifecycle names that were not verified against SNAPRed.
+- Hooks are attached to lifecycle names not documented in sns-snapred-developer-guide.
 - Environment-specific behavior is added without consulting `SEEMeta`.
 - Local testing relies on environment assumptions but does not define an
   `override.yml` or equivalent configuration path.
@@ -334,7 +353,7 @@ belong to SNAPWrap versus SNAPRed.
       SNAPRed data layer.
 - [ ] `SEEMeta` lookup and assembly typing are used when sample-environment
       branching is required.
-- [ ] Hook lifecycle names are verified before adding new hooks.
+- [ ] New hook lifecycle names are verified against sns-snapred-developer-guide.
 - [ ] Configuration is loaded through `WrapConfig` and override behavior is
       documented for local testing.
 

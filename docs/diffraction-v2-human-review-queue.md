@@ -30,7 +30,7 @@ Review policy for this queue:
 | sns-snap-sample-environment-reduction-special-cases | completed | 2026-05-05 | 4aef3b6 | review/sns-snap-sample-environment-reduction-special-cases-v2 | v2 human review approved; artifact-gathering flow clarified |
 | sns-snap-high-pressure-data-interpretation | completed | 2026-05-05 |  | review/sns-snap-high-pressure-data-interpretation-v2 | v2 human review approved |
 | sns-snapred-developer-guide | pending |  |  |  |  |
-| sns-snapwrap-developer-guide | pending |  |  |  |  |
+| sns-snapwrap-developer-guide | completed | 2026-05-07 | — | review/sns-snapwrap-developer-guide-v2 | v2 technical accuracy: cleanTheTree, bin-mask naming, config layer, hook lifecycle |
 | rietveld-checklist | pending |  |  |  |  |
 
 ## Per-skill review sequence
