@@ -29,9 +29,9 @@ Review policy for this queue:
 | sns-snap-calibration-and-geometry | completed | 2026-05-05 | d1bbb7a | review/sns-snap-calibration-and-geometry-v2 | expanded to 4 workflow branches A-D |
 | sns-snap-sample-environment-reduction-special-cases | completed | 2026-05-05 | 4aef3b6 | review/sns-snap-sample-environment-reduction-special-cases-v2 | v2 human review approved; artifact-gathering flow clarified |
 | sns-snap-high-pressure-data-interpretation | completed | 2026-05-05 |  | review/sns-snap-high-pressure-data-interpretation-v2 | v2 human review approved |
-| sns-snapred-developer-guide | pending |  |  |  |  |
+| sns-snapred-developer-guide | deferred-unreviewed | 2026-05-07 |  |  | external review assigned; will be pushed unreviewed |
 | sns-snapwrap-developer-guide | completed | 2026-05-07 | e036451 | review/sns-snapwrap-developer-guide-v2 | v2 technical accuracy: cleanTheTree, bin-mask naming, config layer, hook lifecycle |
-| rietveld-refinement-workflow | completed | 2026-05-07 | — | review/rietveld-refinement-workflow-v2 | v2 parameter release order; software capability notes; metric interpretation guidance |
+| rietveld-refinement-workflow | completed | 2026-05-07 | 02a6c98 | review/rietveld-refinement-workflow-v2 | v2 parameter release order; software capability notes; metric interpretation guidance |
 
 ## Per-skill review sequence
 
