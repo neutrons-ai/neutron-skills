@@ -31,7 +31,7 @@ Review policy for this queue:
 | sns-snap-high-pressure-data-interpretation | completed | 2026-05-05 |  | review/sns-snap-high-pressure-data-interpretation-v2 | v2 human review approved |
 | sns-snapred-developer-guide | pending |  |  |  |  |
 | sns-snapwrap-developer-guide | completed | 2026-05-07 | e036451 | review/sns-snapwrap-developer-guide-v2 | v2 technical accuracy: cleanTheTree, bin-mask naming, config layer, hook lifecycle |
-| rietveld-refinement-workflow | pending |  |  |  |  |
+| rietveld-refinement-workflow | completed | 2026-05-07 | — | review/rietveld-refinement-workflow-v2 | v2 parameter release order; software capability notes; metric interpretation guidance |
 
 ## Per-skill review sequence
 

@@ -7,16 +7,18 @@ description: >
   chi-squared).
 version: 2
 review:
-  status: pending
-  reviewer: null
-  reviewed_on: null
-  basis: []
+  status: human-reviewed
+  reviewer: Malcolm Guthrie
+  reviewed_on: 2026-05-07
+  basis: [docs, code, instrument-science-review]
   notes: >
-    v2: domain content reviewed and expanded by Malcolm Guthrie (2026-05-04),
-    then restructured to required skill anatomy (Overview / When to Use /
-    Process / Rationalizations / Red Flags / Verification). Awaiting
-    instrument-scientist sign-off on final form.
-  approved_commit: null
+    v2: Rietveld refinement workflow with parameter release order guidance,
+    goodness-of-fit metric interpretation, and software capability notes
+    (GSAS-II, FullProf, TOPAS, MAUD). Clarified software notes as subset of
+    popular packages; referenced asset for metric definitions and software-
+    specific conventions. Skill applies to any Rietveld package and any
+    neutron source type (TOF or monochromatic).
+  approved_commit: review/rietveld-refinement-workflow-v2
 metadata:
   techniques: [diffraction, powder-diffraction, rietveld]
   tags: [refinement, analysis, fit-quality]
@@ -65,14 +67,22 @@ during the main analysis cycle.
   perspectives) will become increasingly common for TOF instruments such as SNAP and
   can resolve angular domains; the same parameter-separation principles apply.
 
-**Software notes:**
-- GSAS-II: TOF profile parameters GU, GV, GW (Gaussian), LX, LY (Lorentzian).
-- FullProf: profile parameters U, V, W, X, Y; strongly optimised for magnetic
-  structure models (see also Mag2Pol).
-- TOPAS: flexible parametric modelling; parameter naming differs.
-- MAUD: generally considered most capable for preferred-orientation modelling.
+**Software capability notes** — listed here are only a subset of the most popular
+  Rietveld packages; the workflow principles apply to any package:
+- **GSAS-II**: Widely used and accessible; originally developed for neutrons (GSAS-I legacy)
+  but recent development focuses on synchrotron X-ray. Includes Python API (GSAS-II scriptable)
+  for programmatic workflows. Multi-histogram TOF refinement is possible but can be cumbersome
+  for even small numbers of these.
+- **FullProf**: Optimized for magnetic and complex symmetry structures; provides
+  strong phase-specific Bragg and structure-factor metrics; multipattern capable.
+- **TOPAS**: Most flexible parametrization; supports background-corrected residuals.
+  Useful when standard peak-shape or background models are insufficient.
+- **MAUD**: Best for combined analysis of texture, strain, and microstructure
+  alongside profile refinement; strong in multi-dataset workflows.
 
-**Quality-metric interpretation is software-specific:**
+**Quality-metric interpretation is software-specific** — see
+  [Rietveld-quality-metrics-summary](assets/Rietveld-quality-metrics-summary.md) for
+  detailed definitions, software-specific conventions, and interpretation pitfalls:
 - Always identify whether reported GOF/Chi2 is $R_{wp}/R_{exp}$ or
   $(R_{wp}/R_{exp})^2$ before deciding if fit quality is acceptable.
 - Do not compare raw metric values across packages unless weighting,
@@ -102,8 +112,8 @@ Collect this context before starting:
 - Reduced histogram file(s) and the matching instrument parameter file(s).
 - Identity of all phases expected in the pattern (sample, pressure medium,
   calibrant, sample-environment components).
-- Starting structural model(s) — note whether they are ambient-pressure
-  entries; see caveats in
+- Starting structural model(s) — note whether they are ambient
+  entries; for high-pressure data, see caveats in
   [sns-snap-high-pressure-data-interpretation](../sns-snap-high-pressure-data-interpretation/SKILL.md)
   if working at pressure.
 - Software package in use (GSAS-II, FullProf, TOPAS, other).
@@ -146,10 +156,10 @@ Collect this context before starting:
    - Reduce parameter count where justified using constraints and shared
      physics (for example, rigid-body constraints for known molecular or
      polyhedral units).
-   - Ensure model does not include parameters to which the data are insensitive, especially considering the Q-range of the data and corresponding limits on physical real-space features in models.
+   - Ensure model does not include parameters to which the data are insensitive, especially considering the Q-range of the data and corresponding limits on physical real-space resolution.
    - Prefer isotropic thermal parameters first; only escalate to anisotropic
      thermal parameters when statistics and data quality clearly support it.
-   - For multi-histogram refinements, avoid inflating per-histogram nuisance
+   - For multi-histogram refinements of the same sample, avoid inflating per-histogram nuisance
      terms without clear residual evidence. 
 
    **[CHECKPOINT]**: Free-parameter count and observables are recorded, the
@@ -164,14 +174,21 @@ Collect this context before starting:
    3. Background (polynomial or Chebyshev — sufficient degree to describe
       the data without over-fitting)
    4. Unit-cell parameters
-   5. Profile shape (only if instrument parameters are insufficient — document
-      why; GSAS-II: GU, GV, GW, LX, LY; FullProf: U, V, W, X, Y)
-   6. Atomic positions (symmetry-allowed only)
-   7. Isotropic thermal parameters ($B_{iso}$ / $U_{iso}$)
-   8. Anisotropic thermal parameters ($U_{ij}$) — only with high-quality data
-      and adequate statistics
-   9. Preferred orientation and/or absorption corrections — only when there
+   5. Profile shape via package dependent models (e.g. for strain broadening,
+      anisotropic size broadening, or microstrain models) — only if there is
+      clear evidence of these effects in the difference curve after releasing
+      the previous groups; otherwise, they can be added later as a final
+      refinement stage to try to improve fit quality after all structural
+      parameters are released.
+   6. Preferred orientation and/or absorption corrections — only when there
       is clear evidence these effects are present
+   7. Atomic positions (symmetry-allowed only)
+   8. Isotropic thermal parameters ($B_{iso}$ / $U_{iso}$) — only after all positional parameters are released and the fit has
+      stabilized; these parameters are strongly correlated with absorption
+      and peak shape, so they should be released last among the main sample
+      parameters.
+   9. Anisotropic thermal parameters ($U_{ij}$) — only with high-quality data
+      and adequate statistics
 
    Only release the next group after the fit has stabilised (parameters no
    longer shifting significantly between cycles) and $R_{wp}$ has plateaued.
