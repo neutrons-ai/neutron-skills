@@ -8,6 +8,10 @@ each skill is a directory containing a `SKILL.md` file with YAML
 frontmatter (`name`, `description`, optional `metadata`, ...) and a
 Markdown body of instructions.
 
+For contributor-facing guidance on skill structure, validation, and documented
+human review workflow, see
+[SKILL_AUTHORING_AND_REVIEWING.md](SKILL_AUTHORING_AND_REVIEWING.md).
+
 ## Install
 
 ```bash

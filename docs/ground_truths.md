@@ -195,6 +195,8 @@ Source:
 - Architecture pattern adapted from: https://github.com/addyosmani/agent-skills
 - Project-local adoption context: refactors marked `version: 2` in
   `src/neutron_skills/skills/diffraction/*/SKILL.md`.
+- Contributor-facing operational guide:
+  [SKILL_AUTHORING_AND_REVIEWING.md](../SKILL_AUTHORING_AND_REVIEWING.md)
 
 ## 2026-05-05: Skill validation commands use explicit pixi specs and PYTHONPATH
 
@@ -219,6 +221,7 @@ Rationale:
 Reference:
 
 - [src/neutron_skills/cli.py](../src/neutron_skills/cli.py)
+- [SKILL_AUTHORING_AND_REVIEWING.md](../SKILL_AUTHORING_AND_REVIEWING.md)
 
 ## 2026-05-05: Diffraction v2 human reviews are tracked as one-skill-per-commit
 
@@ -236,6 +239,12 @@ Rationale:
   or inspect.
 - Per-skill tags make approved versions explicit for downstream references.
 - A single queue document reduces process drift during multi-skill review waves.
+
+Operational outline:
+
+- The contributor-facing review procedure, checklist, and frontmatter examples
+  are maintained in
+  [SKILL_AUTHORING_AND_REVIEWING.md](../SKILL_AUTHORING_AND_REVIEWING.md).
 
 Reference:
 
