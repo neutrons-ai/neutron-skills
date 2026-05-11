@@ -16,7 +16,7 @@ review:
 metadata:
   facility: SNS
   beamline: BL3
-  instruments: [SNAP, SNS]
+  instruments: [SNAP]
   software: [snapred, Mantid]
   data_phase: reduction
   techniques: [diffraction, powder-diffraction, time-of-flight]
@@ -45,7 +45,7 @@ top of Mantid that orchestrates three workflows: diffraction calibration
 
 This skill documents the architecture and conventions that stayed stable from
 the v2.0.0 SoftwareX description through the current development branch checked
-on 2026-04-30.
+on 2026-05-11.
 
 Repository: https://github.com/neutrons/SNAPRed  
 Docs: https://snapred.readthedocs.io/en/latest/  
@@ -60,6 +60,9 @@ Paper: Guthrie et al., SoftwareX 33 (2026) 102464
   confirmed the cooking-metaphor class inventory, layer structure, hooks,
   state-ID formation, and service-path registration remain aligned with the
   paper.
+- Additional code scan on 2026-05-11 confirmed `MantidSnapper` remains the
+  primary SNAPRed Mantid-consumption adapter for queued algorithm execution,
+  workspace/log access, and algorithm-level logging.
 
 ---
 
@@ -151,7 +154,26 @@ Do **not** use this skill when:
   `ReductionRecipe`, `ApplyNormalizationRecipe`, and
   `PreprocessReductionRecipe`.
 
-5. **Route functionality through registered service paths** — Service methods
+5. **Use `MantidSnapper` as the canonical Mantid integration surface** —
+  SNAPRed consumes Mantid through `backend/recipe/algorithm/MantidSnapper.py`
+  rather than through scattered direct calls in service logic.
+
+  What `MantidSnapper` provides:
+
+  - Dynamic Mantid algorithm access through `__getattr__()` and
+    `AlgorithmManager.create(...)`.
+  - Queued execution with `_algorithmQueue` and `executeQueue()`.
+  - Workspace access via wrapped ADS access (`mantidSnapper.mtd[...]`).
+  - SNAPRed-tagged run-log retrieval via `_CustomMtd.getSNAPRedLog(...)`.
+  - Per-algorithm progress and logging integration through `snapredLogger`.
+
+  Developer rule:
+
+  - If you need new Mantid algorithm behavior in backend workflows, add it via
+    recipe logic that queues work through `MantidSnapper` unless there is an
+    explicit architectural reason not to.
+
+6. **Route functionality through registered service paths** — Service methods
   are exposed through `@Register(...)` string paths.
 
   Common paths:
@@ -169,7 +191,7 @@ Do **not** use this skill when:
   If you add a workflow, register it explicitly and make the path ownership
   obvious.
 
-6. **Treat instrument state and state IDs as primary backend keys** — State IDs
+7. **Treat instrument state and state IDs as primary backend keys** — State IDs
   are 16-character SHAKE256 digests of rounded detector state.
 
   Formation steps:
@@ -188,7 +210,7 @@ Do **not** use this skill when:
   Any code that ignores state-ID formation risks misrouting calibrations or
   reduction outputs.
 
-7. **Understand calibration workflows before changing reduction behavior** —
+8. **Understand calibration workflows before changing reduction behavior** —
   SNAPRed distinguishes `DifCal` from `NormCal` and persists each through an
   index structure.
 
@@ -209,7 +231,7 @@ Do **not** use this skill when:
 
   - SNAPRed currently fits `DIFC` only, not the full GSAS TOF parameter set.
 
-8. **Preserve output-labelling semantics** — `reduced` versus `diagnostic` is
+9. **Preserve output-labelling semantics** — `reduced` versus `diagnostic` is
   determined from calibration state, not from subjective output quality.
 
   ```python
@@ -221,7 +243,7 @@ Do **not** use this skill when:
   calibration files, and all continue-flag decisions are logged in the
   `ReductionRecord`.
 
-9. **Use hooks as extension points, not code forks** — Hooks let external
+10. **Use hooks as extension points, not code forks** — Hooks let external
   callers inject callbacks without editing SNAPRed internals.
 
   Key rule:
@@ -229,11 +251,11 @@ Do **not** use this skill when:
   - All registered hooks must execute successfully; `HookManager` raises if any
     registered hook fails to run.
 
-10. **Respect the operational defaults** — Lite mode is the default because it
+11. **Respect the operational defaults** — Lite mode is the default because it
    reduces SNAP's native pixel count by about 64x, making all three workflows
    tractable for routine use. Native mode is expert-only and resource-heavy.
 
-11. **Follow backend conventions for reliability** —
+12. **Follow backend conventions for reliability** —
 
   Error handling:
 
@@ -255,7 +277,7 @@ Do **not** use this skill when:
   - Read runtime config through `Config["key.path"]`.
   - Use `override.yml` for local testing overrides.
 
-12. **Use the minimal workflow checklist when adding new functionality** —
+13. **Use the minimal workflow checklist when adding new functionality** —
 
   1. Define `Ingredients` in `backend/dao/ingredients/`.
   2. Define grocery keys.
@@ -277,6 +299,7 @@ breaking service-path, hook, or output-labelling conventions.
 | Excuse | Rebuttal |
 |--------|----------|
 | "I can just add the logic directly in a service method and skip a recipe." | Recipes are the execution unit that keep Mantid workflow logic testable and structured. Bypassing them erodes the architecture and makes later reuse or batching harder. |
+| "Calling Mantid directly in random places is faster than using `MantidSnapper`." | `MantidSnapper` centralizes queueing, workspace tracking, and SNAPRed log conventions. Bypassing it increases coupling and makes behavior harder to reason about and test. |
 | "The cooking metaphor is silly, so I can ignore it." | The metaphor is deeply embedded in class and method names. Ignoring it makes the codebase harder to navigate and increases the odds of wiring the wrong abstraction. |
 | "I can infer calibration behavior without checking the indexes or state IDs." | Calibration validity in SNAPRed is state- and index-driven. Skipping that model is how incorrect calibrations get associated with the wrong runs. |
 | "Diagnostic versus reduced is basically a UI choice." | It is a backend semantic tied to calibration state and traceability. Changing or bypassing that logic breaks downstream trust in output labels. |
@@ -288,6 +311,8 @@ breaking service-path, hook, or output-labelling conventions.
 
 - Code changes bypass `InterfaceController` for normal external request flow.
 - Mantid algorithm logic is embedded directly in services instead of recipes.
+- Direct Mantid calls bypass `MantidSnapper` in backend workflow code without a
+  clear architectural exception.
 - New functionality is added without a registered service path.
 - State IDs or calibration indexes are bypassed in favor of hardcoded paths.
 - Output-labelling logic is altered without reference to calibration-state
@@ -304,6 +329,8 @@ breaking service-path, hook, or output-labelling conventions.
 - [ ] The owning backend layer for the change is identified before editing.
 - [ ] Request flow from `InterfaceController` to service to recipe is still
     coherent after the change.
+- [ ] Mantid algorithm calls that belong to backend workflows are routed through
+  `MantidSnapper` queueing/logging patterns.
 - [ ] New workflow logic is implemented through a `Recipe` and registered
     service path when appropriate.
 - [ ] State-ID and calibration-index behavior is preserved or deliberately
@@ -321,3 +348,5 @@ Cross-references:
 - Reduction workflow overview: `sns-snap-reduction-workflow-overview`
 - Calibration concepts and state controls: `sns-snap-calibration-and-geometry`
 - Reduction failure modes: `sns-snap-reduction-diagnostics`
+- SNAP instrument-specific decisions: `docs/instruments/sns-snap.md`
+- Repository-level stable findings: `docs/ground_truths.md`

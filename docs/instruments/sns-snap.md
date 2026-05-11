@@ -52,3 +52,33 @@ Consequences for skill authoring:
   cases; it should not appear in primary workflow steps.
 - Provenance maps in skill bodies follow the order:
   `snapwrap` → `snapred` → Mantid.
+
+---
+
+## 2026-05-11: SNAPRed Mantid-consumption adapter pattern
+
+Decision:
+
+- In SNAPRed backend workflow code, treat `MantidSnapper` as the primary
+  integration surface for Mantid algorithm execution.
+- Prefer recipe-driven, queued calls (`_algorithmQueue` + `executeQueue()`)
+  over ad hoc direct Mantid calls in backend service logic.
+- Use snapper workspace and log access patterns (`mantidSnapper.mtd[...]`,
+  `getSNAPRedLog(...)`) to preserve SNAPRed tag-prefix log semantics and
+  traceability behavior.
+
+Rationale:
+
+- Code scan on 2026-05-11 of
+  `/Users/66j/Documents/ORNL/code/SNAPRed/src/snapred` showed this adapter is
+  the stable route for dynamic Mantid algorithm invocation, queue execution,
+  workspace tracking, and algorithm-level logging.
+- Keeping this path explicit reduces architectural drift between recipes,
+  services, and instrumentation metadata handling.
+
+Reference anchors:
+
+- `/Users/66j/Documents/ORNL/code/SNAPRed/src/snapred/backend/recipe/algorithm/MantidSnapper.py`
+- `/Users/66j/Documents/ORNL/code/SNAPRed/src/snapred/backend/recipe/GenericRecipe.py`
+- `/Users/66j/Documents/ORNL/code/SNAPRed/src/snapred/backend/recipe/ReadWorkspaceMetadata.py`
+- `/Users/66j/Documents/ORNL/code/SNAPRed/src/snapred/ui/widget/FitPeaksPlot.py`
