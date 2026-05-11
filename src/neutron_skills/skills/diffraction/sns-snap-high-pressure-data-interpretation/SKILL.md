@@ -78,7 +78,7 @@ attenuation correction, and `SEEMeta` handling, see
 |---|---|
 | Domain notes | Malcolm Guthrie instrument-scientist notes, 2026-04-30, preserved in `assets/high-pressure-data-notes.md` |
 | Reduction cross-reference | `sns-snap-sample-environment-reduction-special-cases` |
-| Rietveld framework reference | [rietveld-checklist](../rietveld-checklist/SKILL.md) |
+| Rietveld framework reference | [rietveld-refinement-workflow](../rietveld-refinement-workflow/SKILL.md) |
 
 ---
 
@@ -99,7 +99,7 @@ Do **not** use this skill when:
   sample-environment metadata during reduction.
 - You only need generic release order and fit-quality guidance without a
   high-pressure context; use
-  [rietveld-checklist](../rietveld-checklist/SKILL.md).
+  [rietveld-refinement-workflow](../rietveld-refinement-workflow/SKILL.md).
 
 ### Required context before starting
 
@@ -324,4 +324,4 @@ data.
       statistics and scientific goals.
 
 For general Rietveld parameter release order and goodness-of-fit metrics see
-[rietveld-checklist](../rietveld-checklist/SKILL.md).
+[rietveld-refinement-workflow](../rietveld-refinement-workflow/SKILL.md).

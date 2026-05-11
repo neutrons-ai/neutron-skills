@@ -143,16 +143,16 @@ git push origin <branch>
 git push origin review/sns-snapwrap-developer-guide-v2
 ```
 
-### 8) rietveld-checklist
+### 8) rietveld-refinement-workflow
 
 ```bash
 pixi exec --spec python=3.11 --spec click --spec pyyaml env PYTHONPATH=src \
-  python -m neutron_skills.cli validate src/neutron_skills/skills/diffraction/rietveld-checklist
+  python -m neutron_skills.cli validate src/neutron_skills/skills/diffraction/rietveld-refinement-workflow
 
-git add src/neutron_skills/skills/diffraction/rietveld-checklist/SKILL.md
+git add src/neutron_skills/skills/diffraction/rietveld-refinement-workflow/SKILL.md
 git status --short
-git commit -m "Review rietveld-checklist skill (v2)"
-git tag review/rietveld-checklist-v2
+git commit -m "Review rietveld-refinement-workflow skill (v2)"
+git tag review/rietveld-refinement-workflow-v2
 git push origin <branch>
-git push origin review/rietveld-checklist-v2
+git push origin review/rietveld-refinement-workflow-v2
 ```

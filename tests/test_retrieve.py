@@ -31,10 +31,10 @@ def seeded_registry(tmp_path: Path) -> SkillRegistry:
         "Body A\n",
     )
     _write(
-        tmp_path / "diffraction" / "rietveld-checklist" / "SKILL.md",
+        tmp_path / "diffraction" / "rietveld-refinement-workflow" / "SKILL.md",
         "---\n"
-        "name: rietveld-checklist\n"
-        "description: Checklist for Rietveld refinement of powder diffraction data.\n"
+        "name: rietveld-refinement-workflow\n"
+        "description: Workflow for Rietveld refinement of powder diffraction data.\n"
         "allowed-tools: Read\n"
         "metadata:\n"
         "  tags: [refinement]\n"
@@ -73,7 +73,7 @@ def test_deterministic_ranks_rietveld_for_diffraction_query(seeded_registry: Ski
         registry=seeded_registry,
         method="deterministic",
     )
-    assert skills[0].name == "rietveld-checklist"
+    assert skills[0].name == "rietveld-refinement-workflow"
 
 
 def test_empty_query_returns_empty(seeded_registry: SkillRegistry):
@@ -135,7 +135,7 @@ class _StubSelector:
 
 def test_llm_selector_progressive_happy_path(seeded_registry: SkillRegistry):
     selector = _StubSelector(
-        domain_picks=["diffraction"], skill_picks=["rietveld-checklist"]
+        domain_picks=["diffraction"], skill_picks=["rietveld-refinement-workflow"]
     )
     skills = retrieve(
         "Rietveld refinement on powder diffraction",
@@ -143,7 +143,7 @@ def test_llm_selector_progressive_happy_path(seeded_registry: SkillRegistry):
         method="llm",
         selector=selector,
     )
-    assert [s.name for s in skills] == ["rietveld-checklist"]
+    assert [s.name for s in skills] == ["rietveld-refinement-workflow"]
     # Stage 1 received the tier-0 catalog (domains only).
     assert selector.calls[0][0] == "domain"
     stage1_names = {row["name"] for row in selector.calls[0][1]}
@@ -151,13 +151,13 @@ def test_llm_selector_progressive_happy_path(seeded_registry: SkillRegistry):
     # Stage 2 received only skills in the selected domain.
     assert selector.calls[1][0] == "skill"
     stage2_names = {row["name"] for row in selector.calls[1][1]}
-    assert stage2_names == {"rietveld-checklist"}
+    assert stage2_names == {"rietveld-refinement-workflow"}
 
 
 def test_progressive_filters_out_other_domains(seeded_registry: SkillRegistry):
     """Stage 2 must never see skills outside the selected domains."""
     selector = _StubSelector(
-        domain_picks=["diffraction"], skill_picks=["rietveld-checklist"]
+        domain_picks=["diffraction"], skill_picks=["rietveld-refinement-workflow"]
     )
     retrieve(
         "diffraction question",
@@ -261,7 +261,7 @@ def test_build_catalog_shape(seeded_registry: SkillRegistry):
     assert all(set(row.keys()) == {"name", "description"} for row in catalog)
     assert {row["name"] for row in catalog} == {
         "eqsans-scan-scripting",
-        "rietveld-checklist",
+        "rietveld-refinement-workflow",
         "q-range-basics",
     }
 

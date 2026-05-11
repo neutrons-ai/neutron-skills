@@ -24,9 +24,9 @@ def _seed(root: Path) -> None:
         "# Body\nDo the scan.\n",
         encoding="utf-8",
     )
-    (root / "diffraction" / "rietveld-checklist").mkdir(parents=True)
-    (root / "diffraction" / "rietveld-checklist" / "SKILL.md").write_text(
-        "---\nname: rietveld-checklist\ndescription: Rietveld refinement checklist.\n---\nB\n",
+    (root / "diffraction" / "rietveld-refinement-workflow").mkdir(parents=True)
+    (root / "diffraction" / "rietveld-refinement-workflow" / "SKILL.md").write_text(
+        "---\nname: rietveld-refinement-workflow\ndescription: Rietveld refinement workflow.\n---\nB\n",
         encoding="utf-8",
     )
 
@@ -37,7 +37,7 @@ def test_list_default(tmp_path: Path):
     result = runner.invoke(main, ["list", "--extra-path", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "eqsans-scan-scripting" in result.output
-    assert "rietveld-checklist" in result.output
+    assert "rietveld-refinement-workflow" in result.output
 
 
 def test_list_domain_filter(tmp_path: Path):
@@ -46,7 +46,7 @@ def test_list_domain_filter(tmp_path: Path):
     result = runner.invoke(main, ["list", "--domain", "sans", "--extra-path", str(tmp_path)])
     assert result.exit_code == 0
     assert "eqsans-scan-scripting" in result.output
-    assert "rietveld-checklist" not in result.output
+    assert "rietveld-refinement-workflow" not in result.output
 
 
 def test_list_json(tmp_path: Path):
@@ -56,7 +56,7 @@ def test_list_json(tmp_path: Path):
     assert result.exit_code == 0
     data = json.loads(result.output)
     names = {row["name"] for row in data}
-    assert {"eqsans-scan-scripting", "rietveld-checklist"} <= names
+    assert {"eqsans-scan-scripting", "rietveld-refinement-workflow"} <= names
 
 
 def test_show_existing(tmp_path: Path):

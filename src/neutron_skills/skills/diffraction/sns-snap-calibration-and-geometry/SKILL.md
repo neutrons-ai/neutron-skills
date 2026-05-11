@@ -161,7 +161,7 @@ Do **not** use this skill for:
 
 - Single-crystal SNAP diffraction (different calibration and reduction pathway).
 - Post-reduction analysis steps beyond confirming the instrument parameter file
-  exists (see the rietveld-checklist skill).
+  exists (see the rietveld-refinement-workflow skill).
 
 ---
 
