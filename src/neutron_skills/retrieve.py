@@ -249,8 +249,8 @@ def retrieve(
         The ranked list of matching :class:`Skill` objects. Each skill's
         ``allowed_tools`` attribute exposes its ``allowed-tools``
         frontmatter (permission tokens per the Agent Skills spec) if you
-        need it. To discover Python helpers shipped under
-        ``<skill>/scripts/``, use :func:`neutron_skills.load_skill_tools`.
+        need it. Skills may ship CLI scripts under ``<skill>/scripts/``
+        that can be run via ``uv run`` in a subprocess.
 
     Raises:
         ValueError: If ``method="llm"`` without a ``selector``, or if
