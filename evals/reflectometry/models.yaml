@@ -1,0 +1,37 @@
+# Reflectometry eval model registry.
+#
+# Format: see PLAN.md §5. Each entry must declare:
+#   id:      "<backend>:<model-tag>" — used as the row label in reports.
+#   backend: which backend module to dispatch to.
+#   params:  optional per-model overrides (temperature, etc.).
+#
+# Only the `ollama` backend is implemented in v1. Entries for other
+# backends are kept as commented-out placeholders so that adding cloud
+# support is a one-file change.
+
+- id: ollama:nemotron-3-nano:4b
+  backend: ollama
+  params:
+    temperature: 0.0
+
+- id: ollama:llama3.2:3b
+  backend: ollama
+  params:
+    temperature: 0.0
+
+- id: ollama:gemma4:26b
+  backend: ollama
+  params:
+    temperature: 0.0
+
+# Cloud backends — uncomment once their backends land. They are skipped
+# silently today since the runner only ships an Ollama backend.
+#
+# - id: anthropic:claude-haiku-4-5
+#   backend: anthropic
+# - id: anthropic:claude-sonnet-4-6
+#   backend: anthropic
+# - id: openai:gpt-4o-mini
+#   backend: openai
+# - id: openai:gpt-4o
+#   backend: openai
