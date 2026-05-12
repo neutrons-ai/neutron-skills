@@ -8,6 +8,17 @@ description: >
   co-refinement), parameter-range conventions, and the QProbe / make_probe
   APIs. USE FOR: drafting a new model script or reviewing one. DO NOT USE
   FOR: running the fit itself or reducing raw data to R vs Q.
+version: 2
+review:
+  status: pending
+  reviewer: null
+  reviewed_on: null
+  basis: []
+  notes: >
+    v2: restructured to required skill anatomy (Overview / When to Use /
+    Process / Rationalizations / Red Flags / Verification). Existing refl1d
+    script guidance retained and reorganized.
+  approved_commit: null
 allowed-tools: Read Write
 metadata:
   author: Mat Doucet
@@ -18,6 +29,8 @@ metadata:
 
 # Writing a refl1d Model Script
 
+## Overview
+
 A refl1d model script is a plain Python file that, when imported, exposes a
 module-level variable named **`problem`** of type
 `bumps.fitproblem.FitProblem`. Everything else — how you build the sample,
@@ -27,7 +40,22 @@ are strongly preferred for maintainability and co-refinement.
 See also: the [neutron-reflectometry](../SKILL.md) skill for baseline
 domain knowledge (SLD values, χ² interpretation, roughness rules).
 
-## The three fitting cases
+## When to Use
+
+Use this skill when:
+
+- Drafting a new `problem.py` for refl1d/bumps.
+- Refactoring or reviewing an existing model script.
+- Choosing between combined-file, multi-segment, and multi-sample co-refinement patterns.
+
+Do not use this skill when:
+
+- Running fits or orchestrating execution workflows.
+- Reducing raw reflectometry data to R vs Q.
+
+## Process
+
+### The three fitting cases
 
 | Case | Input files | Probe | Output |
 |------|-------------|-------|--------|
@@ -42,7 +70,7 @@ Detect the case from the data file naming or the user's description:
 - Multiple `*_combined_data_auto.txt` files with **different** `set_id`s
   → **case 3**.
 
-## Required script anatomy
+### Required script anatomy
 
 Every refl1d script should end with a `FitProblem` assigned to `problem`.
 A minimal case-1 template:
@@ -125,7 +153,7 @@ experiment = create_fit_experiment(q, dq, r, dr)
 problem = FitProblem(experiment)
 ```
 
-## Case 2 — multi-segment co-refinement
+### Case 2 — multi-segment co-refinement
 
 One **physical sample** is measured at several incident angles θ. Build
 one `sample` (shared across segments) and one `probe` per segment, each
@@ -179,7 +207,7 @@ Because every `Experiment` holds the **same `sample` object**, their
 layer parameters are automatically tied — no manual constraint lines
 needed.
 
-## Case 3 — multi-sample co-refinement with shared parameters
+### Case 3 — multi-sample co-refinement with shared parameters
 
 Several different measurements, each with its own sample stack, but you
 want some layer parameters **tied** across them (e.g. the buried Cu/Ti
@@ -221,7 +249,7 @@ Each assignment `experimentN.sample[...].x = experiment.sample[...].x`
 replaces the RHS parameter into the Nth sample — afterwards there is a
 single `Parameter` object seen by bumps.
 
-## Parameter-range conventions
+### Parameter-range conventions
 
 These bounds are good defaults; tighten them if you have prior knowledge.
 
@@ -243,7 +271,7 @@ Other rules of thumb from the [neutron-reflectometry](../SKILL.md) skill:
   `substrate | L1 | L2 | ... | ambient`. The leftmost operand is the
   substrate, the rightmost is the incident medium.
 
-## Common mistakes
+### Common mistakes
 
 1. **Forgetting `dq → sigma` conversion.** REF_L data files store `dQ`
    as FWHM. `QProbe` expects 1-σ. Divide by 2.355.
@@ -260,7 +288,7 @@ Other rules of thumb from the [neutron-reflectometry](../SKILL.md) skill:
    useful. Always assign the **Parameter object** from the first
    experiment.
 
-## Validating the script
+### Validating the script
 
 Before launching a long fit:
 
@@ -272,3 +300,28 @@ refl1d --preview model.py
 
 A successful preview plots the initial model against the data without
 fitting — useful to catch layer-order bugs and obvious SLD mistakes.
+
+## Rationalizations
+
+| Excuse | Rebuttal |
+|--------|----------|
+| "I can skip defining `problem` and just return an experiment object." | refl1d/bumps expects a module-level `problem` variable. Missing it breaks discovery and run execution. |
+| "I can set loose ranges now and tighten later if needed." | Overly broad or duplicated bounds often destabilize early fits and hide model errors; start with physically informed ranges. |
+| "Case 2 and case 3 are basically interchangeable." | Case 2 shares one physical sample across segments, while case 3 uses separate sample objects with explicit parameter ties; mixing them changes model meaning. |
+
+## Red Flags
+
+- `problem = FitProblem(...)` is missing at module level.
+- `dQ` is passed as FWHM to `QProbe` without conversion to sigma.
+- Parameter ranges are set multiple times or pinned unrealistically.
+- Absolute data paths are used instead of script-relative paths.
+- Cross-sample parameter sharing is attempted via names/strings rather than object assignment.
+
+## Verification
+
+- [ ] The script imports cleanly and defines module-level `problem`.
+- [ ] Probe construction is consistent with the data format (`QProbe` vs `make_probe`).
+- [ ] Resolution conventions (`dQ` FWHM vs sigma) are handled correctly.
+- [ ] Parameter bounds are physically plausible and assigned once.
+- [ ] Case-specific sharing logic matches intended experiment design.
+- [ ] Preview/import sanity check succeeds before long fits.

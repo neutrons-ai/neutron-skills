@@ -7,6 +7,11 @@ Subcommands:
     retrieve    Retrieve relevant skills for a natural-language query.
     validate    Structurally validate a SKILL.md file or a tree of skills.
     paths       Print the directories being scanned.
+    corpus-summary  Summarize a script corpus catalog JSONL.
+    corpus-list     List records from a script corpus catalog JSONL.
+    snap-corpus-join  Join SNAP catalog+payload and extract flow/SEEMeta features.
+    snap-corpus-archetypes  Build script archetypes for generation guidance.
+    snap-corpus-exemplars  Emit representative exemplars per archetype.
 """
 
 from __future__ import annotations
@@ -18,6 +23,15 @@ from pathlib import Path
 import click
 
 from . import __version__
+from .instruments.sns.snap.ingestion import (
+    build_archetypes,
+    build_exemplars,
+    filter_catalog,
+    join_catalog_payload,
+    load_jsonl,
+    summarize_catalog,
+    summarize_joined,
+)
 from .loader import parse_skill_md
 from .registry import SkillRegistry, _bundled_skills_root, _iter_skill_md_files
 from .retrieve import retrieve as retrieve_fn
@@ -218,6 +232,183 @@ def paths_cmd(extra_paths: tuple[str, ...]) -> None:
     click.echo(f"bundled:  {_bundled_skills_root()}")
     for p in extra_paths:
         click.echo(f"external: {Path(p).expanduser().resolve()}")
+
+
+# ---------------------------------------------------------------------------
+# corpus-summary
+# ---------------------------------------------------------------------------
+
+
+@main.command("corpus-summary")
+@click.argument(
+    "catalog_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def corpus_summary_cmd(catalog_path: Path, as_json: bool) -> None:
+    """Summarize a script corpus catalog JSONL file."""
+    records = load_jsonl(catalog_path)
+    summary = summarize_catalog(records)
+
+    if as_json:
+        click.echo(_json.dumps(summary, indent=2))
+        return
+
+    click.echo(f"Catalog: {catalog_path}")
+    click.echo(f"Total records: {summary['total_records']}")
+    click.echo(f"Active records: {summary['active_records']}")
+    click.echo(f"IPTS count: {summary['ipts_count']}")
+    click.echo(f"Scripts with runs: {summary['scripts_with_identified_runs']}")
+    click.echo(f"Scripts with resolved titles: {summary['scripts_with_resolved_titles']}")
+    click.echo(f"Parse failures: {summary['parse_failures']}")
+
+
+# ---------------------------------------------------------------------------
+# corpus-list
+# ---------------------------------------------------------------------------
+
+
+@main.command("corpus-list")
+@click.argument(
+    "catalog_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option("--active-only", is_flag=True, help="Show only records with active=true.")
+@click.option("--ipts", type=int, default=None, help="Filter to a single IPTS number.")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def corpus_list_cmd(
+    catalog_path: Path, active_only: bool, ipts: int | None, as_json: bool
+) -> None:
+    """List records from a script corpus catalog JSONL file."""
+    records = filter_catalog(load_jsonl(catalog_path), active_only=active_only, ipts=ipts)
+
+    if as_json:
+        click.echo(_json.dumps(records, indent=2))
+        return
+
+    if not records:
+        click.echo("No corpus records found.")
+        return
+
+    for record in records:
+        source_path = record.get("source_path", "<unknown>")
+        record_ipts = record.get("ipts", "?")
+        active = bool(record.get("active"))
+        runs = len(record.get("run_numbers_detected") or [])
+        click.echo(f"{source_path}\n  IPTS: {record_ipts}  active: {active}  runs: {runs}")
+
+
+# ---------------------------------------------------------------------------
+# snap-corpus-join
+# ---------------------------------------------------------------------------
+
+
+@main.command("snap-corpus-join")
+@click.argument("catalog_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("payload_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--active-only", is_flag=True, help="Use only active catalog records before join.")
+@click.option("--ipts", type=int, default=None, help="Filter to a single IPTS number before join.")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def snap_corpus_join_cmd(
+    catalog_path: Path,
+    payload_path: Path,
+    active_only: bool,
+    ipts: int | None,
+    as_json: bool,
+) -> None:
+    """Join SNAP script catalog and payload files and extract stage/SEEMeta features."""
+    catalog_records = filter_catalog(
+        load_jsonl(catalog_path), active_only=active_only, ipts=ipts
+    )
+    payload_records = load_jsonl(payload_path)
+    joined = join_catalog_payload(catalog_records, payload_records)
+    summary = summarize_joined(joined)
+
+    if as_json:
+        click.echo(_json.dumps({"summary": summary, "records": joined}, indent=2))
+        return
+
+    click.echo(f"Joined records: {summary['total_joined_records']}")
+    click.echo(f"With SEEMeta: {summary['records_with_seemeta']}")
+    click.echo(f"With assembly.pe: {summary['records_with_assembly_pe']}")
+    click.echo(f"With assembly.dac: {summary['records_with_assembly_dac']}")
+
+
+# ---------------------------------------------------------------------------
+# snap-corpus-archetypes
+# ---------------------------------------------------------------------------
+
+
+@main.command("snap-corpus-archetypes")
+@click.argument("catalog_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("payload_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--active-only", is_flag=True, help="Use only active catalog records before analysis.")
+@click.option("--ipts", type=int, default=None, help="Filter to a single IPTS number before analysis.")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def snap_corpus_archetypes_cmd(
+    catalog_path: Path,
+    payload_path: Path,
+    active_only: bool,
+    ipts: int | None,
+    as_json: bool,
+) -> None:
+    """Build SNAP script archetypes from joined catalog+payload records."""
+    catalog_records = filter_catalog(
+        load_jsonl(catalog_path), active_only=active_only, ipts=ipts
+    )
+    payload_records = load_jsonl(payload_path)
+    joined = join_catalog_payload(catalog_records, payload_records)
+    archetypes = build_archetypes(joined)
+
+    if as_json:
+        click.echo(_json.dumps(archetypes, indent=2))
+        return
+
+    click.echo(f"Archetypes: {len(archetypes)}")
+    for archetype in archetypes[:10]:
+        click.echo(
+            f"- {archetype['archetype_id']}: count={archetype['count']} assembly={archetype['assembly_type']}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# snap-corpus-exemplars
+# ---------------------------------------------------------------------------
+
+
+@main.command("snap-corpus-exemplars")
+@click.argument("catalog_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("payload_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--active-only", is_flag=True, help="Use only active catalog records before analysis.")
+@click.option("--ipts", type=int, default=None, help="Filter to a single IPTS number before analysis.")
+@click.option("--max-per-archetype", default=3, show_default=True, type=int)
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def snap_corpus_exemplars_cmd(
+    catalog_path: Path,
+    payload_path: Path,
+    active_only: bool,
+    ipts: int | None,
+    max_per_archetype: int,
+    as_json: bool,
+) -> None:
+    """Emit representative script exemplars per SNAP archetype."""
+    catalog_records = filter_catalog(
+        load_jsonl(catalog_path), active_only=active_only, ipts=ipts
+    )
+    payload_records = load_jsonl(payload_path)
+    joined = join_catalog_payload(catalog_records, payload_records)
+    archetypes = build_archetypes(joined)
+    exemplars = build_exemplars(joined, archetypes, max_per_archetype=max_per_archetype)
+
+    if as_json:
+        click.echo(_json.dumps(exemplars, indent=2))
+        return
+
+    click.echo(f"Exemplars: {len(exemplars)}")
+    for exemplar in exemplars[:20]:
+        click.echo(
+            f"- {exemplar['archetype_id']} :: {exemplar['script_id']} :: {exemplar['source_path']}"
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover
