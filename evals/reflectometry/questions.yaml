@@ -1,0 +1,406 @@
+# Reflectometry skill-quality eval bank.
+#
+# Format: see ../PLAN.md §2. Each question is independent — order is
+# only by topic, not difficulty progression. Numerical answers were
+# computed by hand and re-verified; if you spot an error, please open
+# a PR rather than silently editing tolerances.
+
+# =============================================================================
+# Topic: Q geometry — Q = (4π/λ) sin θ
+# =============================================================================
+
+- id: refl-q-001
+  topic: q-geometry
+  type: numerical
+  difficulty: easy
+  question: |
+    A neutron of wavelength λ = 4.75 Å scatters from a flat sample at
+    incident angle θ = 0.5°. Compute the momentum transfer Q in Å⁻¹.
+  expected:
+    value: 0.02309
+    units: "Å⁻¹"
+    rel_tol: 0.03
+  rubric: |
+    Reward Q ≈ 0.0231 Å⁻¹. Common mistakes: using 2θ instead of θ in
+    sin() (gives ~0.0462), or dropping the 4π factor (gives ~0.0058).
+  expected_helpful_skills:
+    - q-range-basics
+  source: "Internal — Bragg-form elastic scattering."
+
+- id: refl-q-002
+  topic: q-geometry
+  type: numerical
+  difficulty: easy
+  question: |
+    A reflectometry experiment puts the Q = 0.05 Å⁻¹ point on the
+    detector at incident angle θ = 1.5°. What neutron wavelength λ
+    achieves this? Give λ in Å.
+  expected:
+    value: 6.580
+    units: "Å"
+    rel_tol: 0.02
+  rubric: |
+    λ = 4π sin(θ) / Q ≈ 6.58 Å. Wrong if the responder uses 2θ in
+    sin() (gives ~3.29) or drops 4π (gives ~0.524).
+  expected_helpful_skills:
+    - q-range-basics
+
+- id: refl-q-003
+  topic: q-geometry
+  type: numerical
+  difficulty: medium
+  question: |
+    For a monochromatic beam of λ = 4.0 Å, what incident angle θ (in
+    degrees) places the Q = 0.05 Å⁻¹ point on the detector?
+  expected:
+    value: 0.912
+    units: "degrees"
+    rel_tol: 0.03
+  rubric: |
+    sin(θ) = Q λ / (4π) → θ ≈ 0.912°. Reject answers given in radians
+    without unit conversion (~0.0159 rad).
+  expected_helpful_skills:
+    - q-range-basics
+
+- id: refl-q-004
+  topic: multilayer
+  type: numerical
+  difficulty: easy
+  question: |
+    A periodic multilayer has bilayer repeat distance d = 80 Å. At what
+    Q (in Å⁻¹) does the first-order (n = 1) Bragg peak appear in a
+    reflectometry scan?
+  expected:
+    value: 0.07854
+    units: "Å⁻¹"
+    rel_tol: 0.02
+  rubric: |
+    Q_n = 2π n / d. For n=1, d=80 Å → Q ≈ 0.0785 Å⁻¹. Common error:
+    using π/d (gives 0.0393) or 4π/d (gives 0.157).
+  expected_helpful_skills:
+    - q-range-basics
+
+# =============================================================================
+# Topic: Critical edge / SLD
+# =============================================================================
+
+- id: refl-q-005
+  topic: critical-edge
+  type: numerical
+  difficulty: medium
+  question: |
+    Compute the critical momentum transfer Q_c for total external
+    reflection of neutrons from a copper film. Use the typical SLD of
+    elemental copper, in 10⁻⁶ Å⁻². Give Q_c in Å⁻¹.
+  expected:
+    value: 0.01814
+    units: "Å⁻¹"
+    rel_tol: 0.05
+  rubric: |
+    Q_c = 4 √(π · SLD). With SLD(Cu) ≈ 6.55 × 10⁻⁶ Å⁻², Q_c ≈ 0.0181
+    Å⁻¹. Accept any computation using an SLD between 6.4 and 6.7 (the
+    common literature spread). Reject if Q_c² is reported (~3.3e-4) or
+    if the formula 2π√SLD is used.
+  expected_helpful_skills:
+    - reflectometry-common
+  source: "Standard derivation; SLD value from reflectometry-common skill."
+
+- id: refl-q-006
+  topic: sld-recall
+  type: numerical
+  difficulty: easy
+  question: |
+    What is the typical neutron scattering length density (SLD) of
+    bulk crystalline silicon used as a reflectometry substrate?
+    Give the answer in units of 10⁻⁶ Å⁻².
+  expected:
+    value: 2.07
+    units: "10⁻⁶ Å⁻²"
+    abs_tol: 0.05
+  rubric: |
+    Pure recall against the SLD table in reflectometry-common.
+    Accept 2.07 ± 0.05; flag answers ≥ 2.5 (likely confusing with SiO₂)
+    or near 4 (confusing with another material).
+  expected_helpful_skills:
+    - reflectometry-common
+
+# =============================================================================
+# Topic: Resolution
+# =============================================================================
+
+- id: refl-q-007
+  topic: resolution
+  type: numerical
+  difficulty: medium
+  question: |
+    A REF_L combined data file (Q, R, dR, dQ) reports dQ = 0.0024 Å⁻¹
+    for a given Q point. Refl1d's `QProbe` constructor expects the
+    Gaussian 1-σ width. What value (in Å⁻¹) should you pass?
+  expected:
+    value: 0.001019
+    units: "Å⁻¹"
+    rel_tol: 0.03
+  rubric: |
+    Convert FWHM → σ via dividing by 2.3548 (≈2.355). Result ≈ 1.02e-3
+    Å⁻¹. Reject the unconverted value 0.0024 (a very common mistake)
+    and reject σ × 2 (≈4.8e-3).
+  expected_helpful_skills:
+    - refl1d-model-script
+    - reflectometry-common
+
+- id: refl-q-008
+  topic: resolution
+  type: mc
+  difficulty: easy
+  question: |
+    In a REF_L combined data file with columns (Q, R, dR, dQ), which
+    width convention does the dQ column store?
+
+    A) 1-σ Gaussian width
+    B) Full width at half maximum (FWHM)
+    C) Variance
+    D) Half width at half maximum
+  expected:
+    value: B
+  rubric: |
+    The Liquids Reflectometer convention is FWHM. Refl1d expects 1-σ,
+    so a conversion (divide by 2.355) is required.
+  expected_helpful_skills:
+    - reflectometry-common
+    - refl1d-model-script
+
+# =============================================================================
+# Topic: Fit-quality interpretation
+# =============================================================================
+
+- id: refl-q-009
+  topic: chi-squared
+  type: mc
+  difficulty: easy
+  question: |
+    A refl1d fit on a multilayer film returns χ² = 1.5. Which of the
+    following is the most reasonable interpretation?
+
+    A) Possible overfitting; check whether errors are over-estimated.
+    B) Excellent fit; the model captures the data within error bars.
+    C) Marginal fit; the model is likely missing structural features.
+    D) Poor fit; structural changes are required immediately.
+  expected:
+    value: B
+  rubric: |
+    Per the χ² interpretation table: 1–2 = excellent. Reject A
+    (overfit zone is χ² < 0.5) and C/D (those start at χ² > 5).
+  expected_helpful_skills:
+    - reflectometry-common
+
+- id: refl-q-010
+  topic: bic
+  type: mc
+  difficulty: hard
+  question: |
+    You add a 4th layer to your reflectometry model. With n = 200 data
+    points, χ² changes from 5.0 to 4.8, and the number of free
+    parameters k goes from 9 to 12. Using BIC = n·ln(χ²) + k·ln(n),
+    should you keep the new layer?
+
+    A) Yes — χ² is lower, so the new model fits better.
+    B) No — the BIC penalty for the 3 extra parameters exceeds the
+       gain from the modest χ² improvement.
+    C) Yes — adding layers always helps capture interfacial features.
+    D) Insufficient information — need to know roughness values.
+  expected:
+    value: B
+  rubric: |
+    Numerically: ΔBIC = 200·(ln 4.8 − ln 5.0) + 3·ln 200
+                ≈ −8.16 + 15.90 ≈ +7.7 → BIC worsened. Reject the
+    layer. The skill explicitly warns that adding layers must produce
+    *substantial* χ² improvement to lower BIC.
+  expected_helpful_skills:
+    - reflectometry-common
+
+# =============================================================================
+# Topic: Roughness
+# =============================================================================
+
+- id: refl-q-011
+  topic: roughness
+  type: short_answer
+  difficulty: medium
+  question: |
+    A 30 Å copper layer in your model fits to an interfacial roughness
+    σ = 25 Å. Briefly explain why this value is physically suspect and
+    what corrective action you should take in the model script.
+  must_mention:
+    - "half"
+  must_not_mention: []
+  rubric: |
+    A correct answer must (a) note that roughness exceeding half the
+    adjacent layer thickness (15 Å here) breaks the layer-as-distinct-
+    region picture, and (b) prescribe tightening the roughness upper
+    bound (or the thickness bound) so the fit stays in physical
+    territory. Mentioning "gradient" / "intermixing" as the alternative
+    interpretation is a plus, not required.
+  expected_helpful_skills:
+    - reflectometry-common
+
+# =============================================================================
+# Topic: Refl1d API
+# =============================================================================
+
+- id: refl-q-012
+  topic: api
+  type: code_diagnose
+  difficulty: medium
+  question: |
+    The following snippet crashes at runtime. Identify the bug and
+    write the correct way to set the Cu SLD bounds.
+
+    ```python
+    from refl1d.names import SLD
+    copper = SLD(name="Cu", rho=6.40)
+    copper.material.rho.range(5.5, 7.0)
+    ```
+  must_mention:
+    - "material"
+    - "sample"
+  rubric: |
+    The bug is that an `SLD` object has no `.material` attribute —
+    `.material` exists only on `Slab` objects inside the constructed
+    sample stack. The fix is to build the sample first and then index
+    into it: `sample[i].material.rho.range(5.5, 7.0)` (or use the
+    name-indexed form `sample["Cu"].material.rho.range(5.5, 7.0)`).
+    Reward answers that show the corrected line, even if phrasing
+    varies. Reject answers that suggest changing the SLD value, the
+    range bounds, or removing the `.range()` call.
+  expected_helpful_skills:
+    - reflectometry-common
+    - refl1d-model-script
+
+- id: refl-q-013
+  topic: api
+  type: short_answer
+  difficulty: easy
+  question: |
+    In a refl1d sample stack written as
+    `Si | Ti(35, 5) | Cu(500, 5) | CuOx(30, 10) | D2O(0, 10)`, identify
+    which slab is the substrate and which is the ambient (incident)
+    medium. State the convention briefly.
+  must_mention:
+    - "Si"
+    - "D2O"
+    - "substrate"
+  rubric: |
+    Refl1d stacks are written substrate → ambient. Si (leftmost) is
+    the substrate; D2O (rightmost) is the ambient incident medium.
+    Reject answers that swap the two — this mistake propagates into
+    `back_reflectivity` and produces a flipped fit.
+  expected_helpful_skills:
+    - refl1d-model-script
+
+# =============================================================================
+# Topic: Refinement strategy
+# =============================================================================
+
+- id: refl-q-014
+  topic: refinement-strategy
+  type: mc
+  difficulty: medium
+  question: |
+    After a fit, χ² = 12 and the Ti adhesion-layer thickness has
+    pinned at its upper bound of 200 Å. The expected nominal Ti
+    thickness for this sample is ~35 Å. What is the FIRST action you
+    should take?
+
+    A) Add a new layer above the Ti to absorb the misfit.
+    B) Switch from the differential-evolution fitter to Levenberg–
+       Marquardt.
+    C) Tighten the Ti thickness bound to a physically realistic range
+       (e.g., 10–80 Å) and refit.
+    D) Increase the data error bars dR until χ² drops below 5.
+  expected:
+    value: C
+  rubric: |
+    The skill prescribes "constrain unphysical parameters first."
+    Adding a layer (A) is a last resort. Switching the fitter (B) and
+    inflating errors (D) are explicitly disallowed by the skill's
+    "General Constraints" section.
+  expected_helpful_skills:
+    - reflectometry-common
+
+- id: refl-q-015
+  topic: multi-segment
+  type: mc
+  difficulty: medium
+  question: |
+    You are co-refining three reflectometry segments measured at
+    θ = 0.45°, 1.20°, and 3.50°. Per-segment χ² values come back as
+    8.2, 1.8, 1.5 — the low-Q segment is much worse than the others.
+    Per-segment intensity normalizations all sit comfortably inside
+    their bounds. The structural parameters look reasonable. Which
+    probe-level parameter should you enable next?
+
+    A) `theta_offset`
+    B) `sample_broadening`
+    C) `back_reflectivity`
+    D) `wavelength_resolution`
+  expected:
+    value: B
+  rubric: |
+    The skill flags "low-Q segment significantly worse" as the canonical
+    sample_broadening symptom. theta_offset is for overlap-region
+    discontinuities, not low-Q broadening. back_reflectivity is a
+    geometry flag, not a fitted parameter. wavelength_resolution is
+    not a refl1d probe parameter.
+  expected_helpful_skills:
+    - reflectometry-common
+
+# =============================================================================
+# Topic: Defaults / policy
+# =============================================================================
+
+- id: refl-q-016
+  topic: defaults
+  type: mc
+  difficulty: medium
+  question: |
+    A user provides a polished silicon substrate and asks you to model
+    a polymer film on top. They do not mention any oxide layer. Should
+    your initial refl1d model include a native SiO₂ layer between Si
+    and the polymer?
+
+    A) Yes — silicon always carries a 10–30 Å native oxide.
+    B) Yes — leaving it out biases the polymer SLD.
+    C) No — adding 3 free parameters absorbs signal that should fit
+       the polymer; only add SiO₂ if the user requests it.
+    D) Only if the polymer film is hydrogenated.
+  expected:
+    value: C
+  rubric: |
+    The skill explicitly says: "By default, avoid adding an SiO₂ layer
+    on the silicon substrate ... only add if the user explicitly
+    requests it." Reject A (factually true about oxide growth, but
+    against modeling policy) and B (wrong — the layer steals fit
+    capacity).
+  expected_helpful_skills:
+    - reflectometry-common
+
+- id: refl-q-017
+  topic: defaults
+  type: numerical
+  difficulty: easy
+  question: |
+    Per the reflectometry skill's SLD-bound guidance, what is the
+    recommended minimum half-width to set for `sld_min`/`sld_max`
+    around the nominal SLD of an ordinary (non-adhesion) layer? Give
+    the answer in units of 10⁻⁶ Å⁻².
+  expected:
+    value: 2.0
+    units: "10⁻⁶ Å⁻²"
+    abs_tol: 0.1
+  rubric: |
+    Pure recall: "Set sld_min and sld_max to at least ±2.0 around the
+    nominal SLD." Note that ±1.0 is the absolute floor ("never narrower
+    than ±1.0"); the *recommended* minimum is ±2.0. Penalize 1.0 as a
+    near-miss (confuses floor with recommendation).
+  expected_helpful_skills:
+    - reflectometry-common
