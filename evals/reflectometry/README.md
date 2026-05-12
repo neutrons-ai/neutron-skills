@@ -1,16 +1,15 @@
 # Reflectometry skill-quality evals
 
-This directory holds the design and the question bank for measuring
-how much the reflectometry skills in this repo improve LLM answers on
-textbook-style problems. The harness itself is described in
-[PLAN.md](PLAN.md) and is **not yet implemented** — the seed materials
-are deliberately landed first so the design can be reviewed before code
-goes in.
+This folder is the reflectometry-specific bank for the [`skill-eval`
+harness](../README.md). The harness itself is generic and lives in
+[`evals/runner/`](../runner); only the questions and the design notes
+are domain-specific.
 
 ## Files
 
 - [PLAN.md](PLAN.md) — itemized harness design (architecture, prompt
-  conditions, grading, models, reporting).
+  conditions, grading, models, reporting). The directory tree there is
+  pre-refactor; the code now lives under `evals/runner/`.
 - [questions.yaml](questions.yaml) — 17 reflectometry questions across
   Q geometry, multilayers, critical edge / SLD, resolution, χ²/BIC
   interpretation, roughness, refl1d API, refinement strategy, multi-
@@ -32,22 +31,24 @@ goes in.
 | Multi-segment co-refinement     | refl-q-015                       |
 | Defaults / SiO₂ policy          | refl-q-016, -017                 |
 
-## Running (when the harness lands)
+## Running
 
 ```bash
-# Dry-run schema validation (no LLM calls):
-python -m evals.reflectometry.runner.cli validate
+# Validate the schema (no LLM calls):
+skill-eval validate reflectometry
 
 # Smoke test against local Ollama models:
-python -m evals.reflectometry.runner.cli run \
-    --models ollama:llama3.2:3b,ollama:llama3.1:8b \
+skill-eval run reflectometry \
     --conditions baseline,retrieve_det,oracle \
     --repeats 3 \
     --out results/
 
-# Aggregate results:
-python -m evals.reflectometry.runner.cli report results/results.jsonl
+# Aggregate results from an existing JSONL:
+skill-eval report results/results.jsonl
 ```
+
+See [`evals/README.md`](../README.md) for the full CLI reference and
+notes on adding new domains.
 
 ## Adding a question
 

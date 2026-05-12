@@ -1,10 +1,15 @@
 """
-Smoke tests for the reflectometry eval harness.
+Smoke tests for the skill-eval harness.
 
 These tests intentionally make **no** LLM calls — they validate the
-schema of ``questions.yaml`` and ``models.yaml`` and exercise the
-condition-builder against the real :class:`SkillRegistry`. Anything
-that needs a running Ollama server lives outside this module.
+schema of the bundled question banks under ``evals/`` and exercise the
+condition-builder and the graders against the real :class:`SkillRegistry`.
+Anything that needs a running Ollama server lives outside this module.
+
+The reflectometry bank is used as the canonical example here; adding a
+new domain (e.g. ``evals/sans/``) does not require updating these tests
+because the schema validator is run via :func:`_validate_questions` which
+is domain-agnostic.
 """
 
 from __future__ import annotations
@@ -15,7 +20,8 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EVAL_DIR = REPO_ROOT / "evals" / "reflectometry"
+EVALS_DIR = REPO_ROOT / "evals"
+REFL_DIR = EVALS_DIR / "reflectometry"
 
 # Make the evals/ tree importable without installing it as a package.
 if str(REPO_ROOT) not in sys.path:
@@ -23,12 +29,12 @@ if str(REPO_ROOT) not in sys.path:
 
 
 def test_questions_yaml_is_loadable_and_nonempty() -> None:
-    data = yaml.safe_load((EVAL_DIR / "questions.yaml").read_text())
+    data = yaml.safe_load((REFL_DIR / "questions.yaml").read_text())
     assert isinstance(data, list) and data, "questions.yaml must be a non-empty list"
 
 
 def test_models_yaml_lists_ollama_models() -> None:
-    data = yaml.safe_load((EVAL_DIR / "models.yaml").read_text())
+    data = yaml.safe_load((EVALS_DIR / "models.yaml").read_text())
     assert isinstance(data, list) and data, "models.yaml must be a non-empty list"
     assert all(isinstance(m, dict) and "id" in m and "backend" in m for m in data)
     assert any(m.get("backend") == "ollama" for m in data), (
@@ -37,25 +43,33 @@ def test_models_yaml_lists_ollama_models() -> None:
 
 
 def test_question_bank_passes_schema_validation() -> None:
-    from evals.reflectometry.runner.cli import _validate_questions
+    from evals.runner.cli import _validate_questions
 
-    errors = _validate_questions(EVAL_DIR / "questions.yaml")
+    errors = _validate_questions(REFL_DIR / "questions.yaml")
     assert errors == [], f"schema errors: {errors}"
+
+
+def test_list_command_discovers_reflectometry() -> None:
+    from evals.runner.cli import _discover_domains
+
+    domains = _discover_domains()
+    assert "reflectometry" in domains, domains
 
 
 def test_build_messages_for_every_condition() -> None:
     from neutron_skills.registry import SkillRegistry
 
-    from evals.reflectometry.runner.conditions import build_messages
+    from evals.runner.conditions import build_messages
 
-    questions = yaml.safe_load((EVAL_DIR / "questions.yaml").read_text())
+    questions = yaml.safe_load((REFL_DIR / "questions.yaml").read_text())
     registry = SkillRegistry.discover()
     q = questions[0]
 
     # retrieve_llm is excluded — it requires a selector or falls back to
     # deterministic; either is exercised through retrieve_det/oracle.
     for cond in ("baseline", "retrieve_det", "oracle", "full_domain"):
-        messages, names = build_messages(q, cond, registry, top_k=3)
+        messages, names = build_messages(q, cond, registry,
+                                         domain="reflectometry", top_k=3)
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
@@ -68,24 +82,37 @@ def test_build_messages_for_every_condition() -> None:
             assert names, "full_domain should inject every reflectometry skill"
 
 
+def test_build_messages_humanizes_domain_in_system_prompt() -> None:
+    from neutron_skills.registry import SkillRegistry
+
+    from evals.runner.conditions import build_messages
+
+    questions = yaml.safe_load((REFL_DIR / "questions.yaml").read_text())
+    registry = SkillRegistry.discover()
+    messages, _ = build_messages(
+        questions[0], "baseline", registry, domain="reflectometry"
+    )
+    assert "specializing in reflectometry" in messages[0]["content"]
+
+
 def test_oracle_condition_uses_expected_helpful_skills() -> None:
     from neutron_skills.registry import SkillRegistry
 
-    from evals.reflectometry.runner.conditions import build_messages
+    from evals.runner.conditions import build_messages
 
-    questions = yaml.safe_load((EVAL_DIR / "questions.yaml").read_text())
+    questions = yaml.safe_load((REFL_DIR / "questions.yaml").read_text())
     registry = SkillRegistry.discover()
     q = next(
         q for q in questions
         if q.get("expected_helpful_skills")
         and all(registry.get(n) is not None for n in q["expected_helpful_skills"])
     )
-    _, names = build_messages(q, "oracle", registry)
+    _, names = build_messages(q, "oracle", registry, domain="reflectometry")
     assert set(names) == set(q["expected_helpful_skills"])
 
 
 def test_grade_numerical_within_tolerance() -> None:
-    from evals.reflectometry.runner.grade import grade
+    from evals.runner.grade import grade
 
     question = {
         "type": "numerical",
@@ -97,7 +124,7 @@ def test_grade_numerical_within_tolerance() -> None:
 
 
 def test_grade_numerical_outside_tolerance() -> None:
-    from evals.reflectometry.runner.grade import grade
+    from evals.runner.grade import grade
 
     question = {
         "type": "numerical",
@@ -108,7 +135,7 @@ def test_grade_numerical_outside_tolerance() -> None:
 
 
 def test_grade_mc_extracts_letter() -> None:
-    from evals.reflectometry.runner.grade import grade
+    from evals.runner.grade import grade
 
     question = {"type": "mc", "expected": {"value": "B"}}
     assert grade(question, "Answer: B — best fit at χ² ≈ 1.5.")["score"] == 1
@@ -116,7 +143,7 @@ def test_grade_mc_extracts_letter() -> None:
 
 
 def test_grade_short_answer_substring() -> None:
-    from evals.reflectometry.runner.grade import grade
+    from evals.runner.grade import grade
 
     question = {
         "type": "short_answer",
@@ -134,7 +161,7 @@ def test_grade_numerical_ignores_bare_digits_in_algebra() -> None:
     the answer scored 1 because the numeric extractor latched onto a stray
     digit in algebra notation.
     """
-    from evals.reflectometry.runner.grade import grade
+    from evals.runner.grade import grade
 
     question = {
         "type": "numerical",
@@ -154,7 +181,7 @@ def test_grade_numerical_ignores_bare_digits_in_algebra() -> None:
 def test_grade_numerical_prefers_unit_anchored_final_answer() -> None:
     """A multi-number response should grade on the answer-with-units, not on
     an unrelated intermediate number that happens to match the target."""
-    from evals.reflectometry.runner.grade import grade
+    from evals.runner.grade import grade
 
     question = {
         "type": "numerical",
@@ -173,7 +200,7 @@ def test_grade_numerical_prefers_unit_anchored_final_answer() -> None:
 
 def test_grade_numerical_accepts_scientific_notation_with_units() -> None:
     """`1.0 × 10⁻⁶ Å⁻²` should anchor on the 1.0 (the mantissa)."""
-    from evals.reflectometry.runner.grade import grade
+    from evals.runner.grade import grade
 
     question = {
         "type": "numerical",

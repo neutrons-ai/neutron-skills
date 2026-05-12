@@ -57,7 +57,7 @@ Repository = "https://github.com/neutrons-ai/neutron-skills"
 
 [project.scripts]
 neutron-skills = "neutron_skills.cli:main"
-refl-eval = "evals.reflectometry.runner.cli:main"
+skill-eval = "evals.runner.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
@@ -65,6 +65,7 @@ include = ["neutron_skills*", "evals*"]
 
 [tool.setuptools.package-data]
 neutron_skills = ["py.typed", "skills/**/*"]
+evals = ["models.yaml"]
 "evals.reflectometry" = ["*.yaml"]
 
 # Pytest configuration

@@ -22,11 +22,16 @@ CONDITIONS: tuple[str, ...] = (
     "full_domain",
 )
 
-BASELINE_SYSTEM = (
-    "You are a neutron-scattering tutor specializing in reflectometry. "
+BASELINE_SYSTEM_TEMPLATE = (
+    "You are a neutron-scattering tutor specializing in {domain_pretty}. "
     "Answer the question concisely. For numerical questions, show the "
     "formula you use and report the final value with units."
 )
+
+
+def _humanize_domain(domain: str) -> str:
+    """Turn a folder-style domain (``small-angle-scattering``) into prose."""
+    return domain.replace("-", " ").replace("_", " ").strip()
 
 
 def _skill_block(skills: Iterable[Skill]) -> str:
@@ -42,7 +47,7 @@ def build_messages(
     condition: str,
     registry: SkillRegistry,
     *,
-    domain: str = "reflectometry",
+    domain: str,
     top_k: int = 3,
     llm_selector: LLMSelector | None = None,
 ) -> tuple[list[dict[str, str]], list[str]]:
@@ -53,8 +58,9 @@ def build_messages(
         question: A question entry from ``questions.yaml``.
         condition: One of :data:`CONDITIONS`.
         registry: A populated :class:`SkillRegistry`.
-        domain: Domain name used by the ``full_domain`` condition
-            (default ``"reflectometry"``).
+        domain: Skill-registry domain name (``reflectometry``, ``sans``, …).
+            Used both as the ``full_domain`` filter and as the
+            ``specializing in <domain>`` clause of the baseline system prompt.
         top_k: Max skills to inject for the two retrieval conditions.
         llm_selector: Optional :class:`LLMSelector` for ``retrieve_llm``;
             if absent the runner silently falls back to deterministic
@@ -103,9 +109,12 @@ def build_messages(
     else:
         raise ValueError(f"unknown condition: {condition!r}")
 
+    baseline_system = BASELINE_SYSTEM_TEMPLATE.format(
+        domain_pretty=_humanize_domain(domain)
+    )
     if skills:
         system = (
-            BASELINE_SYSTEM
+            baseline_system
             + "\n\nUse the skill instructions below as authoritative guidance "
             + "from a domain expert. They are more current than your training data.\n\n"
             + "---\n\n"
@@ -113,7 +122,7 @@ def build_messages(
             + "\n\n---"
         )
     else:
-        system = BASELINE_SYSTEM
+        system = baseline_system
 
     messages = [
         {"role": "system", "content": system},

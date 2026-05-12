@@ -1,11 +1,17 @@
 """
-CLI entry point for the reflectometry skill-quality eval harness.
+CLI entry point for the skill-quality eval harness.
+
+The harness is domain-agnostic: each domain (``reflectometry``, ``sans``,
+``diffraction``, …) lives in its own folder under ``evals/`` and ships a
+``questions.yaml``. The runner figures out the right paths from the
+positional ``domain`` argument.
 
 Invocation::
 
-    python -m evals.reflectometry.runner.cli validate
-    python -m evals.reflectometry.runner.cli run --models ... --conditions ...
-    python -m evals.reflectometry.runner.cli report results/results.jsonl
+    skill-eval list
+    skill-eval validate reflectometry
+    skill-eval run reflectometry --conditions baseline,oracle
+    skill-eval report results/results.jsonl
 """
 
 from __future__ import annotations
@@ -20,17 +26,30 @@ from . import report as report_mod
 from .conditions import CONDITIONS
 from .run import RunConfig, run as run_main
 
-_REFL_DIR = Path(__file__).resolve().parent.parent  # evals/reflectometry/
-DEFAULT_QUESTIONS = _REFL_DIR / "questions.yaml"
-DEFAULT_MODELS = _REFL_DIR / "models.yaml"
+# Repo path: <root>/evals/runner/cli.py -> .parent.parent == <root>/evals/
+_EVALS_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_MODELS = _EVALS_DIR / "models.yaml"
 
-# Fields every question must declare. `expected` is required only for the
-# types that the structured graders consume (numerical, mc); short_answer
-# and code_diagnose drive their contract through `must_mention` instead.
 _BASE_REQUIRED_FIELDS = {"id", "topic", "type", "question", "rubric"}
 _TYPES_REQUIRING_EXPECTED = {"numerical", "mc"}
 _ALLOWED_TYPES = {"numerical", "mc", "short_answer", "code_diagnose"}
 _ALLOWED_MC_LETTERS = {"A", "B", "C", "D"}
+
+
+def _domain_questions_path(domain: str) -> Path:
+    """Default path for a domain's question bank — ``evals/<domain>/questions.yaml``."""
+    return _EVALS_DIR / domain / "questions.yaml"
+
+
+def _discover_domains() -> list[str]:
+    """Return sorted domain names that ship a ``questions.yaml``."""
+    if not _EVALS_DIR.is_dir():
+        return []
+    return sorted(
+        child.name
+        for child in _EVALS_DIR.iterdir()
+        if child.is_dir() and (child / "questions.yaml").exists()
+    )
 
 
 def _validate_questions(path: Path) -> list[str]:
@@ -92,9 +111,6 @@ def _validate_questions(path: Path) -> list[str]:
                         f"{sorted(_ALLOWED_MC_LETTERS)}, got {v!r}"
                     )
         elif qtype in {"short_answer", "code_diagnose"}:
-            # Either must_mention must be present (substring grader) or the
-            # rubric is the sole contract for the LLM judge. Warn loudly if
-            # both are absent — that question is ungradable in v1.
             must = q.get("must_mention")
             if must is not None and not isinstance(must, list):
                 errors.append(f"{loc}: must_mention must be a list")
@@ -107,33 +123,66 @@ def _validate_questions(path: Path) -> list[str]:
     return errors
 
 
+def _resolve_questions_path(domain: str, override: Path | None) -> Path:
+    """Return the questions file for ``domain``, honoring an explicit override."""
+    path = override or _domain_questions_path(domain)
+    if not path.exists():
+        available = _discover_domains()
+        hint = ", ".join(available) if available else "(none discovered)"
+        raise click.ClickException(
+            f"Questions file not found: {path}\nAvailable domains: {hint}"
+        )
+    return path
+
+
 @click.group()
 def cli() -> None:
-    """Reflectometry skill-quality eval harness."""
+    """Skill-quality eval harness for neutron_skills."""
+
+
+@cli.command(name="list")
+def list_cmd() -> None:
+    """List eval domains discovered under evals/."""
+    domains = _discover_domains()
+    if not domains:
+        click.echo("(no eval domains found)")
+        return
+    for name in domains:
+        qpath = _domain_questions_path(name)
+        try:
+            data = yaml.safe_load(qpath.read_text()) or []
+            n: int | str = sum(1 for q in data if isinstance(q, dict))
+        except yaml.YAMLError:
+            n = "?"
+        click.echo(
+            f"  {name:<20} {n} question(s)  ({qpath.relative_to(_EVALS_DIR)})"
+        )
 
 
 @cli.command()
+@click.argument("domain")
 @click.option(
-    "--questions", "questions_path",
-    default=str(DEFAULT_QUESTIONS), show_default=True,
-    type=click.Path(exists=True, path_type=Path),
-    help="Path to the question bank YAML.",
+    "--questions", "questions_path", default=None,
+    type=click.Path(path_type=Path),
+    help="Override path to questions YAML (default: evals/<domain>/questions.yaml).",
 )
-def validate(questions_path: Path) -> None:
-    """Schema-validate the question bank without calling any LLM."""
-    errors = _validate_questions(questions_path)
+def validate(domain: str, questions_path: Path | None) -> None:
+    """Schema-validate a domain's question bank without calling any LLM."""
+    path = _resolve_questions_path(domain, questions_path)
+    errors = _validate_questions(path)
     if errors:
         for e in errors:
             click.echo(f"ERR  {e}", err=True)
         raise click.ClickException(f"{len(errors)} validation error(s)")
-    click.echo(f"OK   {questions_path} — schema valid")
+    click.echo(f"OK   {path} — schema valid")
 
 
 @cli.command()
+@click.argument("domain")
 @click.option(
-    "--questions", "questions_path",
-    default=str(DEFAULT_QUESTIONS), show_default=True,
-    type=click.Path(exists=True, path_type=Path),
+    "--questions", "questions_path", default=None,
+    type=click.Path(path_type=Path),
+    help="Override path to questions YAML (default: evals/<domain>/questions.yaml).",
 )
 @click.option(
     "--models", "models_path",
@@ -185,7 +234,8 @@ def validate(questions_path: Path) -> None:
 )
 @click.option("--verbose", is_flag=True)
 def run(
-    questions_path: Path,
+    domain: str,
+    questions_path: Path | None,
     models_path: Path,
     out_dir: Path,
     conditions: str,
@@ -198,7 +248,7 @@ def run(
     ollama_base_url: str,
     verbose: bool,
 ) -> None:
-    """Run the eval matrix over Ollama models and write results + reports."""
+    """Run the eval matrix for DOMAIN over Ollama models and write reports."""
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
@@ -211,8 +261,11 @@ def run(
             f"Unknown conditions: {sorted(unknown)}; allowed: {list(CONDITIONS)}"
         )
 
+    resolved_questions = _resolve_questions_path(domain, questions_path)
+
     cfg = RunConfig(
-        questions_path=questions_path,
+        domain=domain,
+        questions_path=resolved_questions,
         models_path=models_path,
         out_dir=out_dir,
         conditions=selected_conditions,

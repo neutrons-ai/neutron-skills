@@ -180,24 +180,30 @@ the retrieved set. Reported as precision/recall.
 
 ## 7. Runner architecture
 
+The runner is shared across all domains and lives at the `evals/` root.
+Each domain ships its own `questions.yaml`; the CLI takes the domain as
+a positional argument.
+
 ```
-evals/reflectometry/
-├── PLAN.md                  # this file
-├── README.md                # how to run
-├── questions.yaml           # question bank
-├── models.yaml              # model registry
-└── runner/
-    ├── __init__.py
-    ├── cli.py               # `python -m runner` entry, argparse
-    ├── backends/            # one file per backend
-    │   ├── ollama.py
-    │   ├── anthropic.py
-    │   └── openai.py
-    ├── conditions.py        # builds system prompts per condition
-    ├── grade.py             # numerical / mc / short / code_diagnose
-    ├── judge.py             # LLM-judge fallback
-    ├── run.py               # main loop: question × model × condition × repeat
-    └── report.py            # aggregate to Markdown / JSON / CSV
+evals/
+├── README.md                # developer guide for skill-eval
+├── models.yaml              # shared model registry
+├── runner/
+│   ├── __init__.py
+│   ├── cli.py               # `skill-eval` console-script entry (Click)
+│   ├── backends/            # one file per backend
+│   │   ├── ollama.py
+│   │   ├── anthropic.py    # (not yet implemented)
+│   │   └── openai.py       # (not yet implemented)
+│   ├── conditions.py        # builds system prompts per condition
+│   ├── grade.py             # numerical / mc / short / code_diagnose
+│   ├── judge.py             # LLM-judge fallback
+│   ├── run.py               # main loop: question × model × condition × repeat
+│   └── report.py            # aggregate to Markdown / JSON / CSV
+└── reflectometry/
+    ├── PLAN.md              # this file
+    ├── README.md            # how to run
+    └── questions.yaml       # question bank
 ```
 
 Data flow per cell of the matrix:

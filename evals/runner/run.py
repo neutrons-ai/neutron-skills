@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 class RunConfig:
     """All inputs the runner needs. Built by the CLI from flags/defaults."""
 
+    domain: str
     questions_path: Path
     models_path: Path
     out_dir: Path
@@ -198,7 +199,8 @@ def run(cfg: RunConfig) -> Path:
             for q in questions:
                 for cond in cfg.conditions:
                     messages, retrieved = conditions_mod.build_messages(
-                        q, cond, registry, top_k=cfg.top_k,
+                        q, cond, registry,
+                        domain=cfg.domain, top_k=cfg.top_k,
                     )
                     for repeat in range(cfg.n_repeats):
                         completed += 1
